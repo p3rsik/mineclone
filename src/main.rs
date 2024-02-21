@@ -30,11 +30,35 @@ fn main() {
         .add_plugins(ChunkPlugin)
         // .add_systems(Startup, spawn_objects)
         .add_systems(Startup, setup_lights)
+        .add_systems(Startup, spawn_stone_cube)
         .add_systems(Update, cursor_grab)
         .add_systems(Update, object_selection)
         .add_systems(Update, draw_box_aroud_object)
         .add_systems(Last, (destroy_object, create_object))
         .run();
+}
+
+fn spawn_stone_cube(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let stone_texture = asset_server.load("stone.png");
+    let cube = Cuboid {
+        half_size: Vec3::new(0.5, 0.5, 0.5),
+    };
+    let mesh_h = meshes.add(cube.mesh());
+    let material_h = materials.add(StandardMaterial {
+        base_color_texture: Some(stone_texture),
+        ..default()
+    });
+    commands.spawn(PbrBundle {
+        mesh: mesh_h,
+        material: material_h,
+        transform: Transform::from_xyz(2.0, 1.0, 0.0),
+        ..default()
+    });
 }
 
 fn setup_lights(
@@ -90,6 +114,7 @@ fn object_selection(
         rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, max_toi, solid, filter)
     {
         if let Some(mut entity_commands) = commands.get_entity(entity) {
+            debug!("Camera is looking at {:?}", entity);
             entity_commands.insert(LookingAt {
                 entity,
                 normal: intersection.normal,
@@ -100,10 +125,11 @@ fn object_selection(
 
 fn draw_box_aroud_object(mut gizmos: Gizmos, looked_at_query: Query<&Transform, With<LookingAt>>) {
     let cube = Cuboid {
-        half_size: Vec3::new(0.42, 0.42, 0.42),
+        half_size: Vec3::new(0.5 + 0.001, 0.5 + 0.001, 0.5 + 0.001),
     };
 
     for looked_at in looked_at_query.iter() {
+        debug!("Drawing gizmo around {}", looked_at.translation);
         gizmos.primitive_3d(
             cube,
             looked_at.translation,
@@ -120,6 +146,7 @@ fn destroy_object(
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         for looking_at in looking_at_query.iter() {
+            debug!("Destroying cube {:?}", looking_at.entity);
             commands.entity(looking_at.entity).despawn();
         }
     }
@@ -133,7 +160,7 @@ fn create_object(
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     let material = materials.add(Color::WHITE);
-    let cube_size = 0.4;
+    let cube_size = 0.5;
     let cube = Cuboid {
         half_size: Vec3::new(cube_size, cube_size, cube_size),
     };
@@ -141,6 +168,10 @@ fn create_object(
 
     if buttons.just_pressed(MouseButton::Right) {
         for (transform, looking_at) in looking_at_query.iter() {
+            debug!(
+                "Placing cube at {}",
+                transform.translation + looking_at.normal
+            );
             commands
                 .spawn(PbrBundle {
                     mesh: mesh_h.clone(),

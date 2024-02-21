@@ -15,12 +15,13 @@ pub fn spawn_chunk(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let material = materials.add(Color::WHITE);
-    let cube_size = 0.4;
+    let cube_size = 0.5;
     let cube = Cuboid {
         half_size: Vec3::new(cube_size, cube_size, cube_size),
     };
     let mesh_h = meshes.add(cube.mesh());
 
+    debug!("Generating 4 chunks");
     for chunk_x in -1..1 {
         for chunk_z in -1..1 {
             for x in 0..16 {
