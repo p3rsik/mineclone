@@ -35,7 +35,7 @@
             pkgs.lib.all (re: builtins.match re relPath == null) regexes;
         };
 
-      rust-version = pkgs.rust-bin.stable."1.75.0".default;
+      rust-version = pkgs.rust-bin.stable."1.76.0".default;
 
       ourRustPlatform = pkgs.makeRustPlatform {
         rustc = rust-version;
@@ -88,8 +88,7 @@
         type = "app";
         program = "${self.packages.${system}.mineclone}/bin/mineclone";
       };
-      formatter = pkgs.nixpkgs-fmt;
-      devShells.default = pkgs.mkShell {
+      devShells.default = pkgs.mkShell rec {
         buildInputs = with pkgs; [
           # Should be before rust?.
           (rust-bin.selectLatestNightlyWith (toolchain: toolchain.rustfmt))
@@ -121,7 +120,10 @@
           xorg.libXrandr
           xorg.libXcursor
           xorg.libX11
+          libxkbcommon
         ] ++ darwinDeps;
+
+        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
 
         shellHook = ''
           export RUST_BACKTRACE=1
