@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::camera::FirstPersonCamera;
+use crate::{camera::FirstPersonCamera, player::Player};
 
 pub struct BlockPlugin;
 
@@ -24,15 +24,17 @@ pub struct LookingAt {
 fn block_selection(
     mut commands: Commands,
     camera_query: Query<&Transform, With<FirstPersonCamera>>,
+    player_entity_query: Query<Entity, With<Player>>,
     looked_at_query: Query<Entity, With<LookingAt>>,
     rapier_context: Res<RapierContext>,
 ) {
     let camera_transform = camera_query.single();
+    let player_entity = player_entity_query.single();
     let ray_pos = camera_transform.translation;
     let ray_dir = camera_transform.forward().xyz();
     let max_toi = 4.0;
     let solid = true;
-    let filter = QueryFilter::new();
+    let filter = QueryFilter::new().exclude_collider(player_entity);
 
     for looked_at in looked_at_query.iter() {
         commands.entity(looked_at).remove::<LookingAt>();

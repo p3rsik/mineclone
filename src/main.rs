@@ -6,10 +6,12 @@ use bevy_rapier3d::prelude::*;
 use block::BlockPlugin;
 use camera::CameraPlugin;
 use chunk::ChunkPlugin;
+use player::PlayerPlugin;
 
 mod block;
 mod camera;
 mod chunk;
+mod player;
 
 fn main() {
     App::new()
@@ -37,6 +39,7 @@ fn main() {
         .add_plugins(CameraPlugin)
         .add_plugins(BlockPlugin)
         .add_plugins(ChunkPlugin)
+        .add_plugins(PlayerPlugin)
         // .add_systems(Startup, spawn_objects)
         .add_systems(Startup, setup_lights)
         .add_systems(Startup, spawn_stone_cube)
