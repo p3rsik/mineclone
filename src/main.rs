@@ -6,11 +6,13 @@ use bevy_rapier3d::prelude::*;
 use block::BlockPlugin;
 use camera::CameraPlugin;
 use chunk::ChunkPlugin;
+use config::ConfigPlugin;
 use player::PlayerPlugin;
 
 mod block;
 mod camera;
 mod chunk;
+mod config;
 mod player;
 
 fn main() {
@@ -36,11 +38,16 @@ fn main() {
         //     default_color: Color::WHITE,
         // })
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        // here is the gravity in rapier, I searched to long on the internet, so I will save it here for future reference
+        // .insert_resource(RapierConfiguration {
+        //     gravity: Vec3::ZERO,
+        //     ..default()
+        // })
+        .add_plugins(ConfigPlugin)
         .add_plugins(CameraPlugin)
         .add_plugins(BlockPlugin)
         .add_plugins(ChunkPlugin)
         .add_plugins(PlayerPlugin)
-        // .add_systems(Startup, spawn_objects)
         .add_systems(Startup, setup_lights)
         .add_systems(Startup, spawn_stone_cube)
         .add_systems(Update, cursor_grab)

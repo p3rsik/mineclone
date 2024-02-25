@@ -1,7 +1,7 @@
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
-use crate::camera::FirstPersonCamera;
+use crate::{camera::FirstPersonCamera, config::KeyConfig};
 
 pub struct PlayerPlugin;
 
@@ -49,7 +49,7 @@ fn spawn_player(
         .insert(PbrBundle {
             mesh,
             material,
-            transform: Transform::from_xyz(-2.0, 0.2, -2.0),
+            transform: Transform::from_xyz(0.0, 1.0, 0.0),
             ..default()
         })
         .insert(RigidBody::KinematicPositionBased)
@@ -90,15 +90,28 @@ fn move_player_camera(
 fn move_player(
     time: Res<Time>,
     k_input: Res<ButtonInput<KeyCode>>,
+    k_config: Res<KeyConfig>,
     camera_query: Query<&Transform, With<FirstPersonCamera>>,
     mut player_query: Query<(&mut KinematicCharacterController, &mut Player)>,
 ) {
     let camera_transform = camera_query.single();
     let (mut player_controller, mut player_options) = player_query.single_mut();
     let (axis_x, axis_y, axis_z) = (
-        axis_movement(&k_input, KeyCode::KeyD, KeyCode::KeyA),
-        axis_movement(&k_input, KeyCode::Space, KeyCode::ShiftLeft),
-        axis_movement(&k_input, KeyCode::KeyS, KeyCode::KeyW),
+        axis_movement(
+            &k_input,
+            k_config.player_controls.strafe_right,
+            k_config.player_controls.strafe_left,
+        ),
+        axis_movement(
+            &k_input,
+            k_config.player_controls.jump,
+            k_config.player_controls.crouch,
+        ),
+        axis_movement(
+            &k_input,
+            k_config.player_controls.move_back,
+            k_config.player_controls.move_forward,
+        ),
     );
 
     let rotation = camera_transform.rotation;
