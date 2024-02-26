@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-#[derive(Resource, Default)]
+#[derive(Default)]
 pub struct KeyConfig {
     pub camera_controls: CameraControls,
     pub player_controls: PlayerControls,
@@ -16,6 +16,23 @@ impl Default for CameraControls {
             switch_perspective: KeyCode::F5,
         }
     }
+}
+
+pub struct ChunkConfig {
+    // render_distance must be even
+    pub render_distance: usize,
+}
+
+impl Default for ChunkConfig {
+    fn default() -> Self {
+        ChunkConfig { render_distance: 4 }
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct GameConfig {
+    pub key_config: KeyConfig,
+    pub chunk_config: ChunkConfig,
 }
 
 pub struct PlayerControls {
@@ -44,6 +61,6 @@ pub struct ConfigPlugin;
 
 impl Plugin for ConfigPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(KeyConfig::default());
+        app.insert_resource(GameConfig::default());
     }
 }

@@ -76,7 +76,7 @@ fn destroy_object(
     if buttons.just_pressed(MouseButton::Left) {
         for looking_at in looking_at_query.iter() {
             debug!("Destroying cube {:?}", looking_at.entity);
-            commands.entity(looking_at.entity).despawn();
+            commands.entity(looking_at.entity).despawn_recursive();
         }
     }
 }

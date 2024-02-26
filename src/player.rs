@@ -1,7 +1,11 @@
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
-use crate::{camera::{CameraPerspective, FirstPersonCamera}, config::KeyConfig};
+use crate::{
+    camera::{CameraPerspective, FirstPersonCamera},
+    chunk::ChunkTranslation,
+    config::GameConfig,
+};
 
 pub struct PlayerPlugin;
 
@@ -45,6 +49,7 @@ fn spawn_player(
 
     let player_ent = commands
         .spawn(Player::default())
+        .insert(ChunkTranslation { x: 0, y: 0, z: 0 })
         .insert(PbrBundle {
             mesh,
             material,
@@ -53,19 +58,20 @@ fn spawn_player(
         })
         .insert(RigidBody::KinematicPositionBased)
         .insert(Collider::cuboid(0.3, 0.75, 0.3))
-        .insert(KinematicCharacterController::default()
-    ).id();
+        .insert(KinematicCharacterController::default())
+        .id();
 
-    let camera_ent = commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 2.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        },
-        FirstPersonCamera::default(),
-    )).id();
+    let camera_ent = commands
+        .spawn((
+            Camera3dBundle {
+                transform: Transform::from_xyz(0.0, 2.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+                ..default()
+            },
+            FirstPersonCamera::default(),
+        ))
+        .id();
 
     commands.entity(player_ent).add_child(camera_ent);
-
 }
 
 fn rotate_player_and_camera(
@@ -95,7 +101,7 @@ fn rotate_player_and_camera(
 
     camera_transform.rotation = Quat::from_axis_angle(-Vec3::X, pitch_radians);
 
-    // Third person camera needs additional orbit-like translation 
+    // Third person camera needs additional orbit-like translation
     if *camera_perspective == CameraPerspective::ThirdPerson {
         camera_transform.translation = camera_transform.back().xyz() * 6.0;
     }
@@ -106,9 +112,10 @@ fn rotate_player_and_camera(
 fn move_player(
     time: Res<Time>,
     k_input: Res<ButtonInput<KeyCode>>,
-    k_config: Res<KeyConfig>,
+    config: Res<GameConfig>,
     mut player_query: Query<(&mut KinematicCharacterController, &mut Player, &Transform)>,
 ) {
+    let k_config = &config.key_config;
     let (mut player_controller, mut player_options, player_tf) = player_query.single_mut();
     let (axis_x, axis_y, axis_z) = (
         axis_movement(

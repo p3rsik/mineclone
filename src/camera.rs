@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{config::KeyConfig, player::Player};
+use crate::{config::GameConfig, player::Player};
 
 pub struct CameraPlugin;
 
@@ -50,10 +50,10 @@ impl Default for FirstPersonCamera {
 
 fn change_perspective(
     k_input: Res<ButtonInput<KeyCode>>,
-    k_config: Res<KeyConfig>,
+    config: Res<GameConfig>,
     mut camera_perspective: ResMut<CameraPerspective>,
 ) {
-    if k_input.just_pressed(k_config.camera_controls.switch_perspective) {
+    if k_input.just_pressed(config.key_config.camera_controls.switch_perspective) {
         camera_perspective.next();
     }
 }
