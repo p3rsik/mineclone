@@ -1,7 +1,7 @@
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
-use crate::{camera::FirstPersonCamera, config::KeyConfig};
+use crate::{camera::{CameraPerspective, FirstPersonCamera}, config::KeyConfig};
 
 pub struct PlayerPlugin;
 
@@ -9,8 +9,7 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
             .add_systems(Update, move_player)
-            .add_systems(Update, player_move_result)
-            .add_systems(Update, move_player_camera);
+            .add_systems(Update, rotate_player_and_camera);
     }
 }
 
@@ -44,7 +43,7 @@ fn spawn_player(
     let material = materials.add(Color::RED);
     let mesh = meshes.add(player.mesh());
 
-    commands
+    let player_ent = commands
         .spawn(Player::default())
         .insert(PbrBundle {
             mesh,
@@ -54,14 +53,27 @@ fn spawn_player(
         })
         .insert(RigidBody::KinematicPositionBased)
         .insert(Collider::cuboid(0.3, 0.75, 0.3))
-        .insert(KinematicCharacterController::default());
+        .insert(KinematicCharacterController::default()
+    ).id();
+
+    let camera_ent = commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(0.0, 2.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        FirstPersonCamera::default(),
+    )).id();
+
+    commands.entity(player_ent).add_child(camera_ent);
+
 }
 
-fn move_player_camera(
+fn rotate_player_and_camera(
     mut camera_query: Query<(&mut Transform, &FirstPersonCamera), Without<Player>>,
     mut player_query: Query<(&mut Transform, &mut Player), Without<FirstPersonCamera>>,
     mut mouse_input: EventReader<MouseMotion>,
     time: Res<Time>,
+    camera_perspective: Res<CameraPerspective>,
 ) {
     let (mut camera_transform, camera_options) = camera_query.single_mut();
     let (mut player_transform, mut player_options) = player_query.single_mut();
@@ -81,8 +93,12 @@ fn move_player_camera(
     let yaw_radians = player_options.camera_yaw.to_radians();
     let pitch_radians = player_options.camera_pitch.to_radians();
 
-    camera_transform.rotation = Quat::from_axis_angle(Vec3::Y, yaw_radians)
-        * Quat::from_axis_angle(-Vec3::X, pitch_radians);
+    camera_transform.rotation = Quat::from_axis_angle(-Vec3::X, pitch_radians);
+
+    // Third person camera needs additional orbit-like translation 
+    if *camera_perspective == CameraPerspective::ThirdPerson {
+        camera_transform.translation = camera_transform.back().xyz() * 6.0;
+    }
 
     player_transform.rotation = Quat::from_axis_angle(Vec3::Y, yaw_radians);
 }
@@ -91,11 +107,9 @@ fn move_player(
     time: Res<Time>,
     k_input: Res<ButtonInput<KeyCode>>,
     k_config: Res<KeyConfig>,
-    camera_query: Query<&Transform, With<FirstPersonCamera>>,
-    mut player_query: Query<(&mut KinematicCharacterController, &mut Player)>,
+    mut player_query: Query<(&mut KinematicCharacterController, &mut Player, &Transform)>,
 ) {
-    let camera_transform = camera_query.single();
-    let (mut player_controller, mut player_options) = player_query.single_mut();
+    let (mut player_controller, mut player_options, player_tf) = player_query.single_mut();
     let (axis_x, axis_y, axis_z) = (
         axis_movement(
             &k_input,
@@ -114,7 +128,7 @@ fn move_player(
         ),
     );
 
-    let rotation = camera_transform.rotation;
+    let rotation = player_tf.rotation;
     let forward_vector = rotation.mul_vec3(Vec3::Z).normalize();
     let forward_walk_vector = Vec3::new(forward_vector.x, 0.0, forward_vector.z).normalize();
     let strafe_vector = Quat::from_rotation_y(90.0f32.to_radians())
@@ -155,15 +169,4 @@ fn axis_movement(input: &Res<ButtonInput<KeyCode>>, plus: KeyCode, minus: KeyCod
         axis -= 1.0;
     }
     axis
-}
-
-fn player_move_result(
-    controller_output_query: Query<&KinematicCharacterControllerOutput, With<Player>>,
-    mut camera_query: Query<&mut Transform, With<FirstPersonCamera>>,
-) {
-    for controller in controller_output_query.iter() {
-        let mut camera_transform = camera_query.single_mut();
-
-        camera_transform.translation += controller.effective_translation;
-    }
 }
