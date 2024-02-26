@@ -7,7 +7,7 @@ pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Dimensions::default())
+        app.insert_resource(ChunkDimensions::default())
             .add_systems(Update, load_chunks)
             .add_systems(First, (track_player_chunk, mark_chunks))
             .add_systems(Last, unload_chunks);
@@ -26,15 +26,15 @@ pub struct NotLoadedChunk;
 
 #[derive(Resource, Clone)]
 // Dimensions must be even
-pub struct Dimensions {
+pub struct ChunkDimensions {
     pub width: usize,
     pub height: usize,
     pub depth: usize,
 }
 
-impl Default for Dimensions {
+impl Default for ChunkDimensions {
     fn default() -> Self {
-        Dimensions {
+        ChunkDimensions {
             width: 2,
             height: 2,
             depth: 2,
@@ -42,7 +42,8 @@ impl Default for Dimensions {
     }
 }
 
-#[derive(Component, Clone, PartialEq)]
+#[derive(Component, Clone, PartialEq, Debug)]
+// this is a coordinates of the chunk that do not relate to global transform
 pub struct ChunkTranslation {
     pub x: isize,
     pub y: isize,
@@ -57,42 +58,41 @@ pub struct ChunkBundle {
 
 fn track_player_chunk(
     mut player_query: Query<(&Transform, &mut ChunkTranslation), With<Player>>,
-    chunk_dimensions: Res<Dimensions>,
+    chunk_dimensions: Res<ChunkDimensions>,
 ) {
     let (player_transofrm, mut chunk_translation) = player_query.single_mut();
     let translation = player_transofrm.translation;
     let x = {
         let x = translation.x.round() as isize;
-        if x.signum() == 1 || x.signum() == 0 {
-            x - (x % chunk_dimensions.width as isize)
+        if x >= 0 {
+            x - (x / chunk_dimensions.width as isize)
         } else {
-            x + (x.abs() % chunk_dimensions.width as isize)
+            x + (x.abs() / chunk_dimensions.width as isize)
         }
     };
     let y = {
         let y = translation.y.round() as isize;
-        if y.signum() == 1 || y.signum() == 0 {
-            y - (y % chunk_dimensions.height as isize)
+        if y >= 0 {
+            y - (y / chunk_dimensions.height as isize)
         } else {
-            y + (y.abs() % chunk_dimensions.width as isize)
+            y + (y.abs() / chunk_dimensions.width as isize)
         }
     };
     let z = {
         let z = translation.z.round() as isize;
-        if z.signum() == 1 || z.signum() == 0 {
-            z - (z % chunk_dimensions.depth as isize)
+        if z >= 0 {
+            z - (z / chunk_dimensions.depth as isize)
         } else {
-            z + (z.abs() % chunk_dimensions.depth as isize)
+            z + (z.abs() / chunk_dimensions.depth as isize)
         }
     };
-    // println!("Player chunk: {}, {}, {}", x, y, z);
     *chunk_translation = ChunkTranslation { x, y, z };
 }
 
 fn mark_chunks(
     mut commands: Commands,
     config: Res<GameConfig>,
-    chunk_dimensions: Res<Dimensions>,
+    chunk_dimensions: Res<ChunkDimensions>,
     player_query: Query<&ChunkTranslation, With<Player>>,
     chunk_query: Query<(Entity, &ChunkTranslation, Option<&LoadedChunk>), With<Chunk>>,
 ) {
@@ -106,10 +106,6 @@ fn mark_chunks(
     let end_y = chunk_translation.y + render_dist as isize / 2;
     let start_z = chunk_translation.z - render_dist as isize / 2;
     let end_z = chunk_translation.z + render_dist as isize / 2;
-    // println!(
-    //     "Checking chunks in range:\n[{}, {}, {}]\n[{}, {}, {}]",
-    //     start_x, start_y, start_z, end_x, end_y, end_z
-    // );
 
     let mut chunks = vec![vec![vec![false; render_dist + 1]; render_dist + 1]; render_dist + 1];
     for (chunk, translation, loaded_tag) in chunk_query.iter() {
@@ -141,17 +137,11 @@ fn mark_chunks(
             } else {
                 translation.z + start_z.abs()
             };
-            // println!(
-            //     "translation: {}, {}, {}, normalized: {}, {}, {}",
-            //     translation.x, translation.y, translation.z, x, y, z
-            // );
             chunks[x as usize][y as usize][z as usize] = true;
         } else if let Some(chunk) = commands.get_entity(chunk) {
             chunk.despawn_recursive();
         }
     }
-
-    // println!("marked chunks: {:?}", chunks);
 
     // here we iterate on CHUNK coordinates(i.e. not global transform)
     for x in start_x..=end_x {
@@ -174,24 +164,32 @@ fn mark_chunks(
                     z + start_z.abs()
                 };
                 // checking if chunk was marked as non-existant
-                // println!(
-                //     "Chunk {}, {}, {} indices are {}, {}, {}",
-                //     x, y, z, xi, yi, zi
-                // );
                 if !chunks[xi as usize][yi as usize][zi as usize] {
-                    // println!("Marking chunk {}, {}, {} to spawn", x, y, z);
+                    // global coordinates would equal to chunk translation coord * dimension - dimension/2
+                    let x_global = {
+                        let x = x as f32;
+                        let width = chunk_dimensions.width as f32;
+                        (x - 0.5) * width
+                    };
+                    let y_global = {
+                        let y = y as f32;
+                        let height = chunk_dimensions.height as f32;
+                        (y - 0.5) * height
+                    };
+                    let z_global = {
+                        let z = z as f32;
+                        let depth = chunk_dimensions.depth as f32;
+                        (z - 0.5) * depth
+                    };
                     commands
                         .spawn(ChunkBundle {
                             translation: ChunkTranslation { x, y, z },
                             chunk: Chunk,
                         })
                         // here we want to insert left bottom far edge
-                        .insert(TransformBundle::from_transform(Transform::from_xyz(
-                            (x - (chunk_dimensions.width / 2) as isize) as f32,
-                            (y - (chunk_dimensions.height / 2) as isize) as f32,
-                            (z - (chunk_dimensions.depth / 2) as isize) as f32,
+                        .insert(SpatialBundle::from_transform(Transform::from_xyz(
+                            x_global, y_global, z_global,
                         )))
-                        .insert(VisibilityBundle::default())
                         .insert(NotLoadedChunk);
                 }
             }
@@ -203,7 +201,7 @@ fn load_chunks(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    chunk_dimensions: Res<Dimensions>,
+    chunk_dimensions: Res<ChunkDimensions>,
     // all chunks marked for loading
     to_load_query: Query<(Entity, &ChunkTranslation), With<NotLoadedChunk>>,
 ) {
@@ -225,20 +223,18 @@ fn load_chunks(
                     for x in 0..chunk_dimensions.width {
                         for y in 0..chunk_dimensions.height {
                             for z in 0..chunk_dimensions.depth {
-                                parent
-                                    .spawn(PbrBundle {
+                                parent.spawn((
+                                    PbrBundle {
                                         mesh: mesh_h.clone(),
                                         material: material_h.clone(),
                                         transform: Transform::from_xyz(
                                             x as f32, y as f32, z as f32,
                                         ),
                                         ..default()
-                                    })
-                                    .insert(RigidBody::Fixed)
-                                    .insert(TransformBundle::from_transform(Transform::from_xyz(
-                                        x as f32, y as f32, z as f32,
-                                    )))
-                                    .insert(Collider::cuboid(0.5, 0.5, 0.5));
+                                    },
+                                    RigidBody::Fixed,
+                                    Collider::cuboid(0.5, 0.5, 0.5),
+                                ));
                             }
                         }
                     }

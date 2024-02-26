@@ -47,7 +47,6 @@ impl Default for FirstPersonCamera {
     }
 }
 
-
 fn change_perspective(
     k_input: Res<ButtonInput<KeyCode>>,
     config: Res<GameConfig>,
@@ -76,7 +75,7 @@ fn change_camera_origin(
             }
             // TODO figure this out
             CameraPerspective::ThirdPersonInverted => {
-
+                camera_transform.translation = Vec3::new(0.0, 3.0, -5.0)
             }
         };
     }

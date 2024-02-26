@@ -52,19 +52,18 @@ fn block_selection(
     };
 }
 
-fn draw_box_aroud_object(mut gizmos: Gizmos, looked_at_query: Query<&Transform, With<LookingAt>>) {
+fn draw_box_aroud_object(
+    mut gizmos: Gizmos,
+    looked_at_query: Query<&GlobalTransform, With<LookingAt>>,
+) {
     let cube = Cuboid {
         half_size: Vec3::new(0.5 + 0.001, 0.5 + 0.001, 0.5 + 0.001),
     };
 
     for looked_at in looked_at_query.iter() {
-        debug!("Drawing gizmo around {}", looked_at.translation);
-        gizmos.primitive_3d(
-            cube,
-            looked_at.translation,
-            looked_at.rotation,
-            Color::WHITE,
-        );
+        let (_scale, rotation, translation) = looked_at.to_scale_rotation_translation();
+        debug!("Drawing gizmo around {}", translation);
+        gizmos.primitive_3d(cube, translation, rotation, Color::WHITE);
     }
 }
 
@@ -83,7 +82,7 @@ fn destroy_object(
 
 fn create_object(
     mut commands: Commands,
-    looking_at_query: Query<(&Transform, &LookingAt)>,
+    looking_at_query: Query<(&GlobalTransform, &LookingAt)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     buttons: Res<ButtonInput<MouseButton>>,
@@ -97,22 +96,18 @@ fn create_object(
 
     if buttons.just_pressed(MouseButton::Right) {
         for (transform, looking_at) in looking_at_query.iter() {
-            debug!(
-                "Placing cube at {}",
-                transform.translation + looking_at.normal
-            );
+            let (_scale, _rotation, translation) = transform.to_scale_rotation_translation();
+            debug!("Placing cube at {}", translation + looking_at.normal);
             commands
                 .spawn(PbrBundle {
                     mesh: mesh_h.clone(),
                     material: material.clone(),
-                    transform: Transform::from_translation(
-                        transform.translation + looking_at.normal,
-                    ),
+                    transform: Transform::from_translation(translation + looking_at.normal),
                     ..default()
                 })
                 .insert(RigidBody::Fixed)
                 .insert(TransformBundle::from_transform(
-                    Transform::from_translation(transform.translation + looking_at.normal),
+                    Transform::from_translation(translation + looking_at.normal),
                 ))
                 .insert(Collider::cuboid(cube_size, cube_size, cube_size));
         }
