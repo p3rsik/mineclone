@@ -8,12 +8,14 @@ use camera::CameraPlugin;
 use chunk::ChunkPlugin;
 use config::ConfigPlugin;
 use player::PlayerPlugin;
+use world::GameWorldPlugin;
 
 mod block;
 mod camera;
 mod chunk;
 mod config;
 mod player;
+mod world;
 
 fn main() {
     App::new()
@@ -48,6 +50,7 @@ fn main() {
         .add_plugins(BlockPlugin)
         .add_plugins(ChunkPlugin)
         .add_plugins(PlayerPlugin)
+        .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup_lights)
         .add_systems(Startup, spawn_stone_cube)
         .add_systems(Update, cursor_grab)
@@ -69,12 +72,15 @@ fn spawn_stone_cube(
         base_color_texture: Some(stone_texture),
         ..default()
     });
-    commands.spawn(PbrBundle {
-        mesh: mesh_h,
-        material: material_h,
-        transform: Transform::from_xyz(2.0, 1.0, 0.0),
-        ..default()
-    });
+    commands
+        .spawn(PbrBundle {
+            mesh: mesh_h,
+            material: material_h,
+            transform: Transform::from_xyz(2.0, 1.0, 0.0),
+            ..default()
+        })
+        .insert(RigidBody::Fixed)
+        .insert(Collider::cuboid(0.5, 0.5, 0.5));
 }
 
 fn setup_lights(

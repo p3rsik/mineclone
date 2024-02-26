@@ -1,7 +1,11 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{camera::FirstPersonCamera, player::Player};
+use crate::{
+    camera::FirstPersonCamera,
+    chunk::{Chunk, ChunkDimensions},
+    player::Player,
+};
 
 pub struct BlockPlugin;
 
@@ -12,6 +16,9 @@ impl Plugin for BlockPlugin {
             .add_systems(Last, (destroy_object, create_object));
     }
 }
+
+#[derive(Component, Clone, Debug)]
+pub struct BlockId(pub usize);
 
 #[derive(Component)]
 pub struct LookingAt {
@@ -54,6 +61,7 @@ fn block_selection(
 
 fn draw_box_aroud_object(
     mut gizmos: Gizmos,
+    // blocks are now children of Chunk, so Transform is local
     looked_at_query: Query<&GlobalTransform, With<LookingAt>>,
 ) {
     let cube = Cuboid {
@@ -69,11 +77,16 @@ fn draw_box_aroud_object(
 
 fn destroy_object(
     mut commands: Commands,
-    looking_at_query: Query<&LookingAt>,
+    looking_at_query: Query<(&Parent, &LookingAt, &Transform)>,
+    mut chunk_query: Query<&mut Chunk>,
+    chunk_dimension: Res<ChunkDimensions>,
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
-        for looking_at in looking_at_query.iter() {
+        for (chunk_entity, looking_at, transform) in looking_at_query.iter() {
+            // TODO think of a better solution
+            let mut chunk = chunk_query.get_mut(chunk_entity.get()).unwrap();
+            chunk.delete_block(&transform.translation, &chunk_dimension);
             debug!("Destroying cube {:?}", looking_at.entity);
             commands.entity(looking_at.entity).despawn_recursive();
         }
@@ -82,6 +95,7 @@ fn destroy_object(
 
 fn create_object(
     mut commands: Commands,
+    // blocks are now children of Chunk, so Transform is local
     looking_at_query: Query<(&GlobalTransform, &LookingAt)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,

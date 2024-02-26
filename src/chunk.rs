@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{config::GameConfig, player::Player};
+use crate::{block::BlockId, config::GameConfig, player::Player, world::GameWorld};
 
 pub struct ChunkPlugin;
 
@@ -14,8 +14,19 @@ impl Plugin for ChunkPlugin {
     }
 }
 
-#[derive(Component)]
-pub struct Chunk;
+#[derive(Component, Debug)]
+pub struct Chunk {
+    pub block_data: Vec<BlockId>,
+}
+
+impl Chunk {
+    pub fn delete_block(&mut self, translation: &Vec3, dimensions: &ChunkDimensions) {
+        let index = (translation.x as usize) * dimensions.width * dimensions.height
+            + (translation.y as usize) * dimensions.width
+            + (translation.z as usize);
+        self.block_data[index] = BlockId(0);
+    }
+}
 
 #[derive(Component)]
 // Marker for chunks that needs to be loaded
@@ -42,7 +53,7 @@ impl Default for ChunkDimensions {
     }
 }
 
-#[derive(Component, Clone, PartialEq, Debug)]
+#[derive(Component, Clone, PartialEq, Debug, Eq, Hash)]
 // this is a coordinates of the chunk that do not relate to global transform
 pub struct ChunkTranslation {
     pub x: isize,
@@ -94,7 +105,7 @@ fn mark_chunks(
     config: Res<GameConfig>,
     chunk_dimensions: Res<ChunkDimensions>,
     player_query: Query<&ChunkTranslation, With<Player>>,
-    chunk_query: Query<(Entity, &ChunkTranslation, Option<&LoadedChunk>), With<Chunk>>,
+    chunk_query: Query<(Entity, &ChunkTranslation), With<Chunk>>,
 ) {
     let render_dist = config.chunk_config.render_distance;
     let chunk_translation = player_query.single();
@@ -108,7 +119,7 @@ fn mark_chunks(
     let end_z = chunk_translation.z + render_dist as isize / 2;
 
     let mut chunks = vec![vec![vec![false; render_dist + 1]; render_dist + 1]; render_dist + 1];
-    for (chunk, translation, loaded_tag) in chunk_query.iter() {
+    for (chunk, translation) in chunk_query.iter() {
         if start_x <= translation.x
             && translation.x <= end_x
             && start_y <= translation.y
@@ -116,11 +127,6 @@ fn mark_chunks(
             && start_z <= translation.z
             && translation.z <= end_z
         {
-            if loaded_tag.is_none() {
-                if let Some(mut chunk) = commands.get_entity(chunk) {
-                    chunk.insert(NotLoadedChunk);
-                }
-            }
             // these are "normalized" chunk coordinates
             let x = if start_x >= 0 {
                 translation.x - start_x.abs()
@@ -138,8 +144,8 @@ fn mark_chunks(
                 translation.z + start_z.abs()
             };
             chunks[x as usize][y as usize][z as usize] = true;
-        } else if let Some(chunk) = commands.get_entity(chunk) {
-            chunk.despawn_recursive();
+        } else if let Some(mut chunk) = commands.get_entity(chunk) {
+            chunk.remove::<(LoadedChunk, NotLoadedChunk)>();
         }
     }
 
@@ -182,10 +188,7 @@ fn mark_chunks(
                         (z - 0.5) * depth
                     };
                     commands
-                        .spawn(ChunkBundle {
-                            translation: ChunkTranslation { x, y, z },
-                            chunk: Chunk,
-                        })
+                        .spawn(ChunkTranslation { x, y, z })
                         // here we want to insert left bottom far edge
                         .insert(SpatialBundle::from_transform(Transform::from_xyz(
                             x_global, y_global, z_global,
@@ -201,6 +204,7 @@ fn load_chunks(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    game_world: Res<GameWorld>,
     chunk_dimensions: Res<ChunkDimensions>,
     // all chunks marked for loading
     to_load_query: Query<(Entity, &ChunkTranslation), With<NotLoadedChunk>>,
@@ -212,17 +216,19 @@ fn load_chunks(
     let mesh_h = meshes.add(cube.mesh());
 
     for (chunk, translation) in to_load_query.iter() {
-        if let Some(mut chunk) = commands.get_entity(chunk) {
-            chunk.remove::<NotLoadedChunk>();
-            if translation.y <= 0 {
-                // println!(
-                //     "Spawning chunk {}, {}, {}",
-                //     translation.x, translation.y, translation.z
-                // );
-                chunk.with_children(|parent| {
-                    for x in 0..chunk_dimensions.width {
-                        for y in 0..chunk_dimensions.height {
-                            for z in 0..chunk_dimensions.depth {
+        if let Some(mut chunk_entity) = commands.get_entity(chunk) {
+            println!("Loading chunk {:?}", translation);
+            chunk_entity.remove::<NotLoadedChunk>();
+            let chunk = game_world.get_chunk(translation, &chunk_dimensions);
+
+            chunk_entity.with_children(|parent| {
+                for x in 0..chunk_dimensions.width {
+                    for y in 0..chunk_dimensions.height {
+                        for z in 0..chunk_dimensions.depth {
+                            let index = x * chunk_dimensions.width * chunk_dimensions.height
+                                + y * chunk_dimensions.width
+                                + z;
+                            if chunk.block_data[index].0 == 1 {
                                 parent.spawn((
                                     PbrBundle {
                                         mesh: mesh_h.clone(),
@@ -238,9 +244,9 @@ fn load_chunks(
                             }
                         }
                     }
-                });
-            }
-            chunk.insert(LoadedChunk);
+                }
+            });
+            chunk_entity.insert(LoadedChunk).insert(chunk);
         }
     }
 }
@@ -248,11 +254,18 @@ fn load_chunks(
 fn unload_chunks(
     mut commands: Commands,
     // all chunks that are not marked for loading or are already loaded(preserved)
-    to_unload_query: Query<Entity, (With<Chunk>, Without<LoadedChunk>, Without<NotLoadedChunk>)>,
+    mut game_world: ResMut<GameWorld>,
+    chunk_dimensions: Res<ChunkDimensions>,
+    to_unload_query: Query<
+        (Entity, &ChunkTranslation, &Chunk),
+        (With<Chunk>, Without<LoadedChunk>, Without<NotLoadedChunk>),
+    >,
 ) {
-    for chunk in to_unload_query.iter() {
-        if let Some(chunk) = commands.get_entity(chunk) {
-            chunk.despawn_recursive();
+    for (chunk_entity, translation, chunk) in to_unload_query.iter() {
+        if let Some(chunk_commands) = commands.get_entity(chunk_entity) {
+            println!("Unloading chunk {:?}", translation);
+            game_world.save_chunk(translation, &chunk_dimensions, chunk);
+            chunk_commands.despawn_recursive();
         }
     }
 }
