@@ -32,6 +32,30 @@ pub fn show_chunk_border(
     match *show_chunks {
         ShowChunks::DontShow => {}
         ShowChunks::Show => {
+            gizmos.primitive_3d(
+                Line3d {
+                    direction: Direction3d::Y,
+                },
+                Vec3::splat(0.0),
+                Quat::IDENTITY,
+                Color::RED,
+            );
+            gizmos.primitive_3d(
+                Line3d {
+                    direction: Direction3d::Z,
+                },
+                Vec3::Y * 2.0,
+                Quat::IDENTITY,
+                Color::RED,
+            );
+            gizmos.primitive_3d(
+                Line3d {
+                    direction: Direction3d::X,
+                },
+                Vec3::Y * 2.0,
+                Quat::IDENTITY,
+                Color::RED,
+            );
             for transform in chunk_query.iter() {
                 let x = transform.translation.x + chunk_dimensions.width as f32 * 0.5 / 2.0;
                 let y = transform.translation.y + chunk_dimensions.height as f32 * 0.5 / 2.0;

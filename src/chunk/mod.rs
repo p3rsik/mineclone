@@ -50,35 +50,15 @@ impl Chunk {
             + (translation.z as usize);
         self.block_data[index] = BlockId(1);
     }
-    pub fn calculate_chunk_translation(
+    pub fn get_chunk_translation(
         global_point: &Vec3,
         dimensions: &ChunkDimensions,
     ) -> ChunkTranslation {
-        let x = {
-            let x = global_point.x.round() as isize;
-            if x >= 0 {
-                x - (x / dimensions.width as isize)
-            } else {
-                x + (x.abs() / dimensions.width as isize)
-            }
-        };
-        let y = {
-            let y = global_point.y.round() as isize;
-            if y >= 0 {
-                y - (y / dimensions.height as isize)
-            } else {
-                y + (y.abs() / dimensions.width as isize)
-            }
-        };
-        let z = {
-            let z = global_point.z.round() as isize;
-            if z >= 0 {
-                z - (z / dimensions.depth as isize)
-            } else {
-                z + (z.abs() / dimensions.depth as isize)
-            }
-        };
-        ChunkTranslation { x, y, z }
+        ChunkTranslation {
+            x: global_point.x.div_euclid(dimensions.width as f32) as isize,
+            y: global_point.y.div_euclid(dimensions.height as f32) as isize,
+            z: global_point.z.div_euclid(dimensions.depth as f32) as isize,
+        }
     }
 }
 
@@ -115,16 +95,6 @@ pub struct ChunkTranslation {
     pub z: isize,
 }
 
-impl ChunkTranslation {
-    fn add_vec3(&self, rhs: Vec3) -> ChunkTranslation {
-        ChunkTranslation {
-            x: self.x + rhs.x as isize,
-            y: self.y + rhs.y as isize,
-            z: self.z + rhs.z as isize,
-        }
-    }
-}
-
 #[derive(Bundle)]
 pub struct ChunkBundle {
     pub translation: ChunkTranslation,
@@ -140,7 +110,7 @@ fn track_player_chunk(
 ) {
     let (player_transofrm, mut chunk_translation) = player_query.single_mut();
     *chunk_translation =
-        Chunk::calculate_chunk_translation(&player_transofrm.translation, &chunk_dimensions);
+        Chunk::get_chunk_translation(&player_transofrm.translation, &chunk_dimensions);
 }
 
 fn mark_chunks(
@@ -154,14 +124,15 @@ fn mark_chunks(
     let chunk_translation = player_query.single();
 
     // these are coordinates of chunks(i.e. not real global coordinates)
-    let start_x = chunk_translation.x - render_dist as isize / 2;
-    let end_x = chunk_translation.x + render_dist as isize / 2;
-    let start_y = chunk_translation.y - render_dist as isize / 2;
-    let end_y = chunk_translation.y + render_dist as isize / 2;
-    let start_z = chunk_translation.z - render_dist as isize / 2;
-    let end_z = chunk_translation.z + render_dist as isize / 2;
+    let start_x = chunk_translation.x - render_dist as isize;
+    let end_x = chunk_translation.x + render_dist as isize;
+    let start_y = chunk_translation.y - render_dist as isize;
+    let end_y = chunk_translation.y + render_dist as isize;
+    let start_z = chunk_translation.z - render_dist as isize;
+    let end_z = chunk_translation.z + render_dist as isize;
 
-    let mut chunks = vec![vec![vec![false; render_dist + 1]; render_dist + 1]; render_dist + 1];
+    let mut chunks =
+        vec![vec![vec![false; 2 * render_dist + 1]; 2 * render_dist + 1]; 2 * render_dist + 1];
     for (chunk, translation) in chunk_query.iter() {
         if start_x <= translation.x
             && translation.x <= end_x
@@ -214,21 +185,21 @@ fn mark_chunks(
                 };
                 // checking if chunk was marked as non-existant
                 if !chunks[xi as usize][yi as usize][zi as usize] {
-                    // global coordinates would equal to chunk translation coord * dimension - dimension/2
+                    // global coordinates would equal to chunk translation coord * dimension
                     let x_global = {
                         let x = x as f32;
                         let width = chunk_dimensions.width as f32;
-                        (x - 0.5) * width
+                        x * width
                     };
                     let y_global = {
                         let y = y as f32;
                         let height = chunk_dimensions.height as f32;
-                        (y - 0.5) * height
+                        y * height
                     };
                     let z_global = {
                         let z = z as f32;
                         let depth = chunk_dimensions.depth as f32;
-                        (z - 0.5) * depth
+                        z * depth
                     };
                     commands
                         .spawn(ChunkTranslation { x, y, z })
@@ -336,7 +307,7 @@ fn create_object(
     chunk_dimension: Res<ChunkDimensions>,
     buttons: Res<ButtonInput<MouseButton>>,
     // blocks are now children of Chunk, so Transform is local
-    looking_at_query: Query<(&Parent, &GlobalTransform, &LookingAt)>,
+    looking_at_query: Query<(&GlobalTransform, &LookingAt)>,
     mut chunk_query: Query<(Entity, &mut Chunk, &ChunkTranslation, &Transform)>,
 ) {
     let material_h = materials.add(Color::RED);
@@ -345,25 +316,19 @@ fn create_object(
     };
     let mesh_h = meshes.add(cube.mesh());
     if buttons.just_pressed(MouseButton::Right) {
-        for (parent, transform, looking_at) in looking_at_query.iter() {
+        for (transform, looking_at) in looking_at_query.iter() {
             // where to place new block in global coords
             let translation = transform.translation() + looking_at.normal;
-            // ChunkTranslation of the parent chunk
-            let (_e, _ch, from_chunk_translation, _tr) = chunk_query.get(parent.get()).unwrap();
-            // here is the error
-            let to_chunk_translation = from_chunk_translation.add_vec3(looking_at.normal);
+            let to_chunk_translation = Chunk::get_chunk_translation(&translation, &chunk_dimension);
             let (chunk_entity, mut chunk, _chunk_translation, chunk_transform) = chunk_query
                 .iter_mut()
                 .filter(|(_e, _ch, translation, _tr)| **translation == to_chunk_translation)
                 .last()
                 .unwrap();
-            println!("Adding block at {:?}", translation);
 
             let x = { translation.x - chunk_transform.translation.x };
             let y = { translation.y - chunk_transform.translation.y };
             let z = { translation.z - chunk_transform.translation.z };
-            println!("Adding it to chunk {:?}", to_chunk_translation);
-            println!("Adding it at local coords {}, {}, {}", x, y, z);
 
             chunk.create_block(&Vec3::new(x, y, z), &chunk_dimension);
             commands.entity(chunk_entity).with_children(|parent| {
