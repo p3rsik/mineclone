@@ -3,7 +3,6 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 use bevy_rapier3d::prelude::*;
-use block::BlockPlugin;
 use camera::CameraPlugin;
 use chunk::ChunkPlugin;
 use config::ConfigPlugin;
@@ -45,18 +44,20 @@ fn main() {
         //     gravity: Vec3::ZERO,
         //     ..default()
         // })
-        .add_plugins(ConfigPlugin)
-        .add_plugins(CameraPlugin)
-        .add_plugins(BlockPlugin)
-        .add_plugins(ChunkPlugin)
-        .add_plugins(PlayerPlugin)
-        .add_plugins(GameWorldPlugin)
+        .add_plugins((
+            ConfigPlugin,
+            CameraPlugin,
+            ChunkPlugin,
+            PlayerPlugin,
+            GameWorldPlugin,
+        ))
         .add_systems(Startup, setup_lights)
         .add_systems(Startup, spawn_stone_cube)
         .add_systems(Update, cursor_grab)
         .run();
 }
 
+// test cube with textures
 fn spawn_stone_cube(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -83,6 +84,7 @@ fn spawn_stone_cube(
         .insert(Collider::cuboid(0.5, 0.5, 0.5));
 }
 
+// rudimentary lights
 fn setup_lights(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,

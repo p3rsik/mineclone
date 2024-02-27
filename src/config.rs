@@ -4,6 +4,7 @@ use bevy::prelude::*;
 pub struct KeyConfig {
     pub camera_controls: CameraControls,
     pub player_controls: PlayerControls,
+    pub debug_controls: DebugControls,
 }
 
 pub struct CameraControls {
@@ -14,6 +15,18 @@ impl Default for CameraControls {
     fn default() -> Self {
         CameraControls {
             switch_perspective: KeyCode::F5,
+        }
+    }
+}
+
+pub struct DebugControls {
+    pub toggle_chunk_border: KeyCode,
+}
+
+impl Default for DebugControls {
+    fn default() -> Self {
+        DebugControls {
+            toggle_chunk_border: KeyCode::F9,
         }
     }
 }

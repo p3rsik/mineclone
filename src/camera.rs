@@ -1,8 +1,26 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
 
 use crate::{config::GameConfig, player::Player};
 
 pub struct CameraPlugin;
+
+impl Plugin for CameraPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(CameraPerspective::default())
+            .add_systems(Update, (change_perspective, change_camera_origin))
+            .add_systems(Update, (block_selection, draw_box_aroud_object));
+    }
+}
+
+// Used to determine at what entity camera is looking
+#[derive(Component)]
+pub struct LookingAt {
+    // Entity which the player is looking at
+    pub entity: Entity,
+    // normal of the plane at which player is looking
+    pub normal: Vec3,
+}
 
 #[derive(Resource, Default, PartialEq)]
 pub enum CameraPerspective {
@@ -19,14 +37,6 @@ impl CameraPerspective {
             Self::ThirdPerson => *self = Self::ThirdPersonInverted,
             Self::ThirdPersonInverted => *self = Self::FirstPerson,
         }
-    }
-}
-
-impl Plugin for CameraPlugin {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(CameraPerspective::default())
-            .add_systems(Update, change_perspective)
-            .add_systems(Update, change_camera_origin);
     }
 }
 
@@ -78,5 +88,52 @@ fn change_camera_origin(
                 camera_transform.translation = Vec3::new(0.0, 3.0, -5.0)
             }
         };
+    }
+}
+
+fn block_selection(
+    mut commands: Commands,
+    camera_query: Query<&GlobalTransform, With<FirstPersonCamera>>,
+    player_entity_query: Query<(Entity, &Transform), With<Player>>,
+    looked_at_query: Query<Entity, With<LookingAt>>,
+    rapier_context: Res<RapierContext>,
+) {
+    let camera_transform = camera_query.single();
+    let (player_entity, player_transform) = player_entity_query.single();
+    let ray_pos = player_transform.translation + Vec3::Y * 2.0;
+    let ray_dir = camera_transform.forward().xyz();
+    let max_toi = 8.0;
+    let solid = true;
+    let filter = QueryFilter::new().exclude_collider(player_entity);
+
+    for looked_at in looked_at_query.iter() {
+        commands.entity(looked_at).remove::<LookingAt>();
+    }
+    if let Some((entity, intersection)) =
+        rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, max_toi, solid, filter)
+    {
+        if let Some(mut entity_commands) = commands.get_entity(entity) {
+            debug!("Camera is looking at {:?}", entity);
+            entity_commands.insert(LookingAt {
+                entity,
+                normal: intersection.normal,
+            });
+        }
+    };
+}
+
+fn draw_box_aroud_object(
+    mut gizmos: Gizmos,
+    // blocks are now children of Chunk, so Transform is local
+    looked_at_query: Query<&GlobalTransform, With<LookingAt>>,
+) {
+    let cube = Cuboid {
+        half_size: Vec3::new(0.5 + 0.001, 0.5 + 0.001, 0.5 + 0.001),
+    };
+
+    for looked_at in looked_at_query.iter() {
+        let (_scale, rotation, translation) = looked_at.to_scale_rotation_translation();
+        debug!("Drawing gizmo around {}", translation);
+        gizmos.primitive_3d(cube, translation, rotation, Color::WHITE);
     }
 }
