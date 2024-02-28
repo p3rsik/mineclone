@@ -30,8 +30,8 @@ impl GameWorld {
     // Generates chunk and applies player changes to it
     pub fn get_chunk(
         &self,
-        translation: &ChunkTranslation,
-        dimensions: &ChunkDimensions,
+        translation: ChunkTranslation,
+        dimensions: ChunkDimensions,
         // modified data to apply while generating
     ) -> Chunk {
         let mut block_data =
@@ -41,14 +41,14 @@ impl GameWorld {
                 for z in 0..dimensions.depth {
                     let index = x * dimensions.width * dimensions.height + y * dimensions.width + z;
                     // if there is a chunk in memory already
-                    if let Some(chunk) = self.chunk_data.get(translation) {
-                        // TODO replace with actual world generation
+                    if let Some(chunk) = self.chunk_data.get(&translation) {
                         // if there is a block in storage - use it
                         if let Some(block_id) = chunk.block_data.get(index) {
                             block_data[index] = block_id.clone();
                             continue;
                         }
                     } else {
+                        // TODO replace with actual world generation
                         // if we're on chunks that are under 0 then generate stone
                         if translation.y <= 0 {
                             block_data[index] = BlockId(1);
@@ -60,16 +60,20 @@ impl GameWorld {
                 }
             }
         }
-        Chunk { block_data }
+        Chunk {
+            block_data,
+            translation,
+            dimensions,
+        }
     }
     // Saves player changes to chunk
     pub fn save_chunk(
         &mut self,
-        translation: &ChunkTranslation,
-        dimensions: &ChunkDimensions,
+        translation: ChunkTranslation,
+        dimensions: ChunkDimensions,
         chunk: &Chunk,
     ) {
-        if let Some(chunk_prev) = self.chunk_data.get_mut(translation) {
+        if let Some(chunk_prev) = self.chunk_data.get_mut(&translation) {
             for x in 0..dimensions.width {
                 for y in 0..dimensions.height {
                     for z in 0..dimensions.depth {
@@ -92,8 +96,14 @@ impl GameWorld {
                     }
                 }
             }
-            self.chunk_data
-                .insert(translation.clone(), Chunk { block_data });
+            self.chunk_data.insert(
+                translation.clone(),
+                Chunk {
+                    block_data,
+                    translation,
+                    dimensions,
+                },
+            );
         };
     }
 }

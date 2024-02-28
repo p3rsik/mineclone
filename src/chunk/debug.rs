@@ -44,17 +44,17 @@ pub fn show_chunk_border(
                 Line3d {
                     direction: Direction3d::Z,
                 },
-                Vec3::Y * 2.0,
+                Vec3::Y,
                 Quat::IDENTITY,
-                Color::RED,
+                Color::BLUE,
             );
             gizmos.primitive_3d(
                 Line3d {
                     direction: Direction3d::X,
                 },
-                Vec3::Y * 2.0,
+                Vec3::Y,
                 Quat::IDENTITY,
-                Color::RED,
+                Color::GREEN,
             );
             for transform in chunk_query.iter() {
                 let x = transform.translation.x + chunk_dimensions.width as f32 * 0.5 / 2.0;

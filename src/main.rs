@@ -62,24 +62,22 @@ fn setup_lights(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let cube = Cuboid {
-        half_size: Vec3::new(0.4, 0.4, 0.4),
-    };
-    let mesh = meshes.add(cube.mesh());
+    let sphere = Sphere { radius: 0.5 };
+    let mesh = meshes.add(sphere.mesh());
     commands.spawn(PointLightBundle {
         point_light: PointLight {
-            intensity: 500000.0,
-            range: 10000.0,
+            intensity: 50000000.0,
+            range: 1000000.0,
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(0.0, 10.0, 0.0))
+        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 0.0))
             .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Z),
         ..default()
     });
     commands.spawn(PbrBundle {
         mesh,
         material: materials.add(Color::WHITE),
-        transform: Transform::from_xyz(0.0, 10.0, 0.0),
+        transform: Transform::from_xyz(0.0, 50.0, 0.0),
         ..default()
     });
 }

@@ -10,3 +10,5 @@ use bevy::prelude::*;
 
 #[derive(Component, Clone, Debug)]
 pub struct BlockId(pub usize);
+
+pub const BLOCK_HALF_SIZE: f32 = 0.5;
