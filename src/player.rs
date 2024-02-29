@@ -3,7 +3,6 @@ use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
 use crate::{
     camera::{CameraPerspective, FirstPersonCamera},
-    chunk::ChunkTranslation,
     config::GameConfig,
 };
 
@@ -49,11 +48,10 @@ fn spawn_player(
 
     let player_ent = commands
         .spawn(Player::default())
-        .insert(ChunkTranslation { x: 0, y: 0, z: 0 })
         .insert(PbrBundle {
             mesh,
             material,
-            transform: Transform::from_xyz(0.0, 1.0, 0.0),
+            transform: Transform::from_xyz(0.0, 5.0, 0.0),
             ..default()
         })
         .insert(RigidBody::KinematicPositionBased)

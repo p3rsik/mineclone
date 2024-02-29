@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::block::BLOCK_HALF_SIZE;
 use crate::chunk::Chunk;
 use crate::chunk::ChunkDimensions;
 use crate::config::GameConfig;
@@ -27,7 +28,7 @@ pub fn show_chunk_border(
     mut gizmos: Gizmos,
     show_chunks: Res<ShowChunks>,
     chunk_dimensions: Res<ChunkDimensions>,
-    chunk_query: Query<&Transform, With<Chunk>>,
+    chunk_query: Query<&GlobalTransform, With<Chunk>>,
 ) {
     match *show_chunks {
         ShowChunks::DontShow => {}
@@ -44,7 +45,7 @@ pub fn show_chunk_border(
                 Line3d {
                     direction: Direction3d::Z,
                 },
-                Vec3::Y,
+                Vec3::splat(0.0),
                 Quat::IDENTITY,
                 Color::BLUE,
             );
@@ -52,24 +53,20 @@ pub fn show_chunk_border(
                 Line3d {
                     direction: Direction3d::X,
                 },
-                Vec3::Y,
+                Vec3::splat(0.0),
                 Quat::IDENTITY,
                 Color::GREEN,
             );
             for transform in chunk_query.iter() {
-                let x = transform.translation.x + chunk_dimensions.width as f32 * 0.5 / 2.0;
-                let y = transform.translation.y + chunk_dimensions.height as f32 * 0.5 / 2.0;
-                let z = transform.translation.z + chunk_dimensions.depth as f32 * 0.5 / 2.0;
-                let origin = Vec3::new(x, y, z);
                 gizmos.primitive_3d(
                     Cuboid {
                         half_size: Vec3::new(
-                            chunk_dimensions.width as f32 * 0.5,
-                            chunk_dimensions.height as f32 * 0.5,
-                            chunk_dimensions.depth as f32 * 0.5,
+                            chunk_dimensions.width as f32 * BLOCK_HALF_SIZE,
+                            chunk_dimensions.height as f32 * BLOCK_HALF_SIZE,
+                            chunk_dimensions.depth as f32 * BLOCK_HALF_SIZE,
                         ),
                     },
-                    origin,
+                    transform.translation(),
                     Quat::IDENTITY,
                     Color::WHITE,
                 )

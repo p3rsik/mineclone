@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{config::GameConfig, player::Player};
+use crate::{block::BLOCK_HALF_SIZE, config::GameConfig, player::Player};
 
 pub struct CameraPlugin;
 
@@ -14,12 +14,14 @@ impl Plugin for CameraPlugin {
 }
 
 // Used to determine at what entity camera is looking
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct LookingAt {
     // Entity which the player is looking at
     pub entity: Entity,
-    // normal of the plane at which player is looking
-    pub normal: Vec3,
+    // Intersection info
+    pub intersection: RayIntersection,
+    // Position of block in global coords
+    pub block_pos: Vec3,
 }
 
 #[derive(Resource, Default, PartialEq)]
@@ -52,7 +54,7 @@ impl Default for FirstPersonCamera {
         FirstPersonCamera {
             sensitivity: 8.0,
             velocity: Vec3::ZERO,
-            friction: 0.8,
+            friction: 0.7,
         }
     }
 }
@@ -113,10 +115,11 @@ fn block_selection(
         rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, max_toi, solid, filter)
     {
         if let Some(mut entity_commands) = commands.get_entity(entity) {
-            debug!("Camera is looking at {:?}", entity);
+            let point = intersection.point;
             entity_commands.insert(LookingAt {
                 entity,
-                normal: intersection.normal,
+                intersection,
+                block_pos: Vec3::new(point.x.floor(), point.y.floor(), point.z.floor()),
             });
         }
     };
@@ -125,15 +128,24 @@ fn block_selection(
 fn draw_box_aroud_object(
     mut gizmos: Gizmos,
     // blocks are now children of Chunk, so Transform is local
-    looked_at_query: Query<&GlobalTransform, With<LookingAt>>,
+    looked_at_query: Query<(&LookingAt, &GlobalTransform)>,
 ) {
     let cube = Cuboid {
-        half_size: Vec3::new(0.5 + 0.001, 0.5 + 0.001, 0.5 + 0.001),
+        half_size: Vec3::splat(BLOCK_HALF_SIZE + 0.001),
     };
 
-    for looked_at in looked_at_query.iter() {
-        let (_scale, rotation, translation) = looked_at.to_scale_rotation_translation();
-        debug!("Drawing gizmo around {}", translation);
-        gizmos.primitive_3d(cube, translation, rotation, Color::WHITE);
+    for (looking_at, global_transform) in looked_at_query.iter() {
+        let (_scale, rotation, _translation) = global_transform.to_scale_rotation_translation();
+        // println!(
+        //     "Looking at {}, block {}",
+        //     looking_at.intersection.point, looking_at.block_pos
+        // );
+        gizmos.primitive_3d(
+            cube,
+            looking_at.block_pos + Vec3::splat(BLOCK_HALF_SIZE)
+                - 2.0 * BLOCK_HALF_SIZE * looking_at.intersection.normal,
+            rotation,
+            Color::WHITE,
+        );
     }
 }

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
 use crate::{
-    block::{BlockId, BLOCK_HALF_SIZE},
+    block::BlockId,
     camera::LookingAt,
     chunk::debug::{show_chunk_border, toggle_show_chunks, ShowChunks},
     config::GameConfig,
@@ -28,7 +28,7 @@ impl Plugin for ChunkPlugin {
                     show_chunk_border,
                 ),
             )
-            .add_systems(First, mark_chunks)
+            .add_systems(First, (mark_chunks, reload_chunk_mesh))
             .add_systems(Last, (unload_chunks, destroy_object));
     }
 }
@@ -41,26 +41,52 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    // translation must be relative to chunk and x, y or z must not be < 0
-    pub fn delete_block_at(&mut self, translation: &Vec3) {
-        let index = (translation.x as usize) * self.dimensions.width * self.dimensions.height
-            + (translation.y as usize) * self.dimensions.width
-            + (translation.z as usize);
-        self.block_data[index] = BlockId(0);
+    pub fn remove_block_at(&mut self, translation: &Vec3) {
+        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+            * (self.dimensions.width as isize)
+            * (self.dimensions.height as isize)
+            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+                * (self.dimensions.width as isize)
+            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+        self.block_data[index as usize] = BlockId(0);
+        println!(
+            "remove_block_at({} = {}) -> {:?}",
+            translation, index, self.block_data[index as usize]
+        );
     }
-    // translation must be relative to chunk and x, y or z must not be < 0
-    pub fn create_block_at(&mut self, translation: &Vec3) {
-        let index = (translation.x as usize) * self.dimensions.width * self.dimensions.height
-            + (translation.y as usize) * self.dimensions.width
-            + (translation.z as usize);
-        self.block_data[index] = BlockId(1);
+    pub fn set_block_at(&mut self, translation: &Vec3) {
+        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+            * (self.dimensions.width as isize)
+            * (self.dimensions.height as isize)
+            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+                * (self.dimensions.width as isize)
+            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+        self.block_data[index as usize] = BlockId(1);
     }
-    // translation must be relative to chunk and x, y or z must not be < 0
     pub fn get_block_at(&self, translation: &Vec3) -> BlockId {
-        let index = (translation.x as usize) * self.dimensions.width * self.dimensions.height
-            + (translation.y as usize) * self.dimensions.width
-            + (translation.z as usize);
-        self.block_data[index].clone()
+        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+            * (self.dimensions.width as isize)
+            * (self.dimensions.height as isize)
+            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+                * (self.dimensions.width as isize)
+            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+        self.block_data[index as usize].clone()
+    }
+    pub fn get_local_block_pos(&self, translation: &Vec3) -> Vec3 {
+        let width = self.dimensions.width as f32;
+        let height = self.dimensions.height as f32;
+        let depth = self.dimensions.depth as f32;
+        let origin = Vec3::new(
+            (self.translation.x as f32 + 0.5) * width,
+            (self.translation.y as f32 + 0.5) * height,
+            (self.translation.z as f32 + 0.5) * depth,
+        );
+        println!(
+            "get_local_block_pos({}) -> {}",
+            translation,
+            *translation - origin
+        );
+        *translation - origin
     }
     pub fn get_chunk_translation(
         global_point: &Vec3,
@@ -81,6 +107,9 @@ pub struct LoadedChunk;
 #[derive(Component)]
 pub struct NotLoadedChunk;
 
+#[derive(Component)]
+pub struct ReloadChunk;
+
 #[derive(Resource, Component, Clone, Debug)]
 // Dimensions must be even
 pub struct ChunkDimensions {
@@ -92,9 +121,9 @@ pub struct ChunkDimensions {
 impl Default for ChunkDimensions {
     fn default() -> Self {
         ChunkDimensions {
-            width: 16,
-            height: 16,
-            depth: 16,
+            width: 2,
+            height: 2,
+            depth: 2,
         }
     }
 }
@@ -190,17 +219,17 @@ fn mark_chunks(
                     let x_global = {
                         let x = x as f32;
                         let width = chunk_dimensions.width as f32;
-                        x * width + BLOCK_HALF_SIZE
+                        (x + 0.5) * width
                     };
                     let y_global = {
                         let y = y as f32;
                         let height = chunk_dimensions.height as f32;
-                        y * height - BLOCK_HALF_SIZE
+                        (y + 0.5) * height
                     };
                     let z_global = {
                         let z = z as f32;
                         let depth = chunk_dimensions.depth as f32;
-                        z * depth + BLOCK_HALF_SIZE
+                        (z + 0.5) * depth
                     };
                     commands
                         .spawn((ChunkTranslation { x, y, z }, chunk_dimensions.clone()))
@@ -229,16 +258,33 @@ fn load_chunks(
         if let Some(mut chunk_entity) = commands.get_entity(chunk) {
             chunk_entity.remove::<NotLoadedChunk>();
             let chunk = game_world.get_chunk(translation.clone(), dimensions.clone());
-            let mesh = meshes.add(chunk.mesh());
-
-            chunk_entity.with_children(|parent| {
-                parent.spawn((PbrBundle {
-                    mesh,
-                    material: material_h.clone(),
-                    transform: Transform::from_translation(Vec3::splat(-BLOCK_HALF_SIZE)),
-                    ..default()
-                },));
+            let mesh = chunk.mesh();
+            // apparently Collider::from_bevy_mesh panics, because of
+            // assert!(indices.len() > 0), so I need to check it manually
+            // Why can't you rust return Err?
+            let collider = mesh.indices().and_then(|inds| {
+                if !inds.is_empty() {
+                    Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh)
+                } else {
+                    None
+                }
             });
+            let mesh = meshes.add(mesh);
+
+            if let Some(collider) = collider {
+                chunk_entity.with_children(|parent| {
+                    parent.spawn((
+                        PbrBundle {
+                            mesh,
+                            material: material_h.clone(),
+                            transform: Transform::from_translation(Vec3::splat(0.0)),
+                            ..default()
+                        },
+                        RigidBody::Fixed,
+                        collider,
+                    ));
+                });
+            }
             chunk_entity
                 .remove::<(ChunkTranslation, ChunkDimensions)>()
                 .insert(LoadedChunk)
@@ -261,19 +307,69 @@ fn unload_chunks(
     }
 }
 
+fn reload_chunk_mesh(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    chunks_to_reload_query: Query<(Entity, &Chunk), With<ReloadChunk>>,
+) {
+    let material_h = materials.add(Color::WHITE);
+    for (chunk_entity, chunk) in chunks_to_reload_query.iter() {
+        let mesh = chunk.mesh();
+        // apparently Collider::from_bevy_mesh panics, because of
+        // assert!(indices.len() > 0), so I need to check it manually
+        // Why can't you rust return Err?
+        let collider = mesh.indices().and_then(|inds| {
+            if !inds.is_empty() {
+                Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh)
+            } else {
+                None
+            }
+        });
+        let mesh = meshes.add(mesh);
+
+        if let Some(collider) = collider {
+            if let Some(mut chunk_commands) = commands.get_entity(chunk_entity) {
+                chunk_commands.despawn_descendants();
+                chunk_commands.with_children(|parent| {
+                    parent.spawn((
+                        PbrBundle {
+                            mesh,
+                            material: material_h.clone(),
+                            transform: Transform::from_translation(Vec3::splat(0.0)),
+                            ..default()
+                        },
+                        RigidBody::Fixed,
+                        collider,
+                    ));
+                });
+                chunk_commands.remove::<ReloadChunk>();
+            }
+        }
+    }
+}
+
 fn destroy_object(
     mut commands: Commands,
-    looking_at_query: Query<(&Parent, &LookingAt, &Transform)>,
-    mut chunk_query: Query<&mut Chunk>,
+    looking_at_query: Query<(&Parent, &LookingAt)>,
+    mut chunk_query: Query<(&mut Chunk, &GlobalTransform)>,
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
-        for (chunk_entity, looking_at, transform) in looking_at_query.iter() {
+        for (chunk_entity, looking_at) in looking_at_query.iter() {
             // TODO Check if this solution is okay
             // block always has one parent and it's its chunk
-            let mut chunk = chunk_query.get_mut(chunk_entity.get()).unwrap();
-            chunk.delete_block_at(&transform.translation);
-            commands.entity(looking_at.entity).despawn_recursive();
+            let (mut chunk, transform) = chunk_query.get_mut(chunk_entity.get()).unwrap();
+            let (_scale, _rot, tr) = transform.to_scale_rotation_translation();
+            println!(
+                "removing block from {:?} with global transform {}",
+                chunk.translation, tr
+            );
+            println!("{:?}", looking_at);
+            let local_pos =
+                chunk.get_local_block_pos(&(looking_at.block_pos - looking_at.intersection.normal));
+            chunk.remove_block_at(&local_pos);
+            commands.entity(chunk_entity.get()).insert(ReloadChunk);
         }
     }
 }
@@ -296,7 +392,7 @@ fn create_object(
     if buttons.just_pressed(MouseButton::Right) {
         for (transform, looking_at) in looking_at_query.iter() {
             // where to place new block in global coords
-            let translation = transform.translation() + looking_at.normal;
+            let translation = transform.translation() + looking_at.intersection.normal;
             let to_chunk_translation = Chunk::get_chunk_translation(&translation, &chunk_dimension);
             let (chunk_entity, mut chunk, chunk_transform) = chunk_query
                 .iter_mut()
@@ -308,7 +404,7 @@ fn create_object(
             let y = { translation.y - chunk_transform.translation.y };
             let z = { translation.z - chunk_transform.translation.z };
 
-            chunk.create_block_at(&Vec3::new(x, y, z));
+            chunk.set_block_at(&Vec3::new(x, y, z));
             commands.entity(chunk_entity).with_children(|parent| {
                 parent.spawn((
                     PbrBundle {

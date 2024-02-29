@@ -49,8 +49,12 @@ impl GameWorld {
                         }
                     } else {
                         // TODO replace with actual world generation
-                        // if we're on chunks that are under 0 then generate stone
-                        if translation.y <= 0 {
+                        // if we're at chunks that are under 0 then generate stone
+                        if translation.y < 0 {
+                            if index == 7 {
+                                block_data[index] = BlockId(0);
+                                continue;
+                            }
                             block_data[index] = BlockId(1);
                         } else {
                             // else generate air
