@@ -138,6 +138,7 @@ pub fn load_chunks(
         });
         let mesh = meshes.add(mesh);
 
+        // we want to spawn a chunk even if it doesn't have a mesh, cauze it can be chunk without any blocks
         let chunk_entity = commands
             .spawn(chunk)
             .insert(SpatialBundle::from_transform(Transform::from_translation(
@@ -211,17 +212,19 @@ pub fn reload_chunk_mesh(
 
             if let Some(collider) = collider {
                 if let Some(mut chunk_commands) = commands.get_entity(*chunk_entity) {
-                    // it overwrites previous values, so we can just insert new
-                    chunk_commands.insert((
-                        PbrBundle {
-                            mesh,
-                            material: material_h.clone(),
-                            transform: Transform::from_translation(Vec3::splat(0.0)),
-                            ..default()
-                        },
-                        RigidBody::Fixed,
-                        collider,
-                    ));
+                    chunk_commands.clear_children();
+                    chunk_commands.with_children(|parent| {
+                        parent.spawn((
+                            PbrBundle {
+                                mesh,
+                                material: material_h.clone(),
+                                transform: Transform::from_translation(Vec3::splat(0.0)),
+                                ..default()
+                            },
+                            RigidBody::Fixed,
+                            collider,
+                        ));
+                    });
                 }
             }
         }
