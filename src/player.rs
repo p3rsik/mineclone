@@ -2,7 +2,7 @@ use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
 use crate::{
-    camera::{CameraPerspective, FirstPersonCamera},
+    camera::{CameraPerspective, PlayerCamera},
     config::GameConfig,
 };
 
@@ -65,7 +65,7 @@ fn spawn_player(
                 transform: Transform::from_xyz(0.0, 2.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
                 ..default()
             },
-            FirstPersonCamera::default(),
+            PlayerCamera::default(),
         ))
         .id();
 
@@ -73,8 +73,8 @@ fn spawn_player(
 }
 
 fn rotate_player_and_camera(
-    mut camera_query: Query<(&mut Transform, &FirstPersonCamera), Without<Player>>,
-    mut player_query: Query<(&mut Transform, &mut Player), Without<FirstPersonCamera>>,
+    mut camera_query: Query<(&mut Transform, &PlayerCamera), Without<Player>>,
+    mut player_query: Query<(&mut Transform, &mut Player), Without<PlayerCamera>>,
     mut mouse_input: EventReader<MouseMotion>,
     time: Res<Time>,
     camera_perspective: Res<CameraPerspective>,

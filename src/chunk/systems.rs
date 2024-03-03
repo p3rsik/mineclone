@@ -212,7 +212,7 @@ pub fn reload_chunk_mesh(
 
             if let Some(collider) = collider {
                 if let Some(mut chunk_commands) = commands.get_entity(*chunk_entity) {
-                    chunk_commands.clear_children();
+                    chunk_commands.despawn_descendants();
                     chunk_commands.with_children(|parent| {
                         parent.spawn((
                             PbrBundle {
@@ -248,8 +248,7 @@ pub fn destroy_object(
                 chunk.translation, tr
             );
             println!("{:?}", looking_at);
-            let local_pos =
-                chunk.get_local_block_pos(&(looking_at.block_pos - looking_at.intersection.normal));
+            let local_pos = chunk.get_local_block_pos(&looking_at.block_pos);
             chunk.remove_block_at(&local_pos);
             chunk_ev.send(ChunkEvent::Reload(chunk_entity.get()));
         }

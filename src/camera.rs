@@ -29,29 +29,27 @@ pub enum CameraPerspective {
     #[default]
     FirstPerson,
     ThirdPerson,
-    ThirdPersonInverted,
 }
 
 impl CameraPerspective {
     fn next(&mut self) {
         match self {
             Self::FirstPerson => *self = Self::ThirdPerson,
-            Self::ThirdPerson => *self = Self::ThirdPersonInverted,
-            Self::ThirdPersonInverted => *self = Self::FirstPerson,
+            Self::ThirdPerson => *self = Self::FirstPerson,
         }
     }
 }
 
 #[derive(Component)]
-pub struct FirstPersonCamera {
+pub struct PlayerCamera {
     pub sensitivity: f32,
     pub velocity: Vec3,
     pub friction: f32,
 }
 
-impl Default for FirstPersonCamera {
+impl Default for PlayerCamera {
     fn default() -> Self {
-        FirstPersonCamera {
+        PlayerCamera {
             sensitivity: 8.0,
             velocity: Vec3::ZERO,
             friction: 0.7,
@@ -71,7 +69,7 @@ fn change_perspective(
 
 fn change_camera_origin(
     camera_perspective: Res<CameraPerspective>,
-    mut camera_query: Query<&mut Transform, (With<FirstPersonCamera>, Without<Player>)>,
+    mut camera_query: Query<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
 ) {
     if camera_perspective.is_changed() {
         let mut camera_transform = camera_query.single_mut();
@@ -85,17 +83,13 @@ fn change_camera_origin(
             CameraPerspective::ThirdPerson => {
                 camera_transform.translation = Vec3::new(0.0, 3.0, 5.0);
             }
-            // TODO figure this out
-            CameraPerspective::ThirdPersonInverted => {
-                camera_transform.translation = Vec3::new(0.0, 3.0, -5.0)
-            }
         };
     }
 }
 
 fn block_selection(
     mut commands: Commands,
-    camera_query: Query<&GlobalTransform, With<FirstPersonCamera>>,
+    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
     player_entity_query: Query<(Entity, &Transform), With<Player>>,
     looked_at_query: Query<Entity, With<LookingAt>>,
     rapier_context: Res<RapierContext>,
@@ -119,32 +113,23 @@ fn block_selection(
             entity_commands.insert(LookingAt {
                 entity,
                 intersection,
-                block_pos: Vec3::new(point.x.floor(), point.y.floor(), point.z.floor()),
+                block_pos: Vec3::new(point.x.floor(), point.y.floor(), point.z.floor())
+                    - intersection.normal,
             });
         }
     };
 }
 
-fn draw_box_aroud_object(
-    mut gizmos: Gizmos,
-    // blocks are now children of Chunk, so Transform is local
-    looked_at_query: Query<(&LookingAt, &GlobalTransform)>,
-) {
+fn draw_box_aroud_object(mut gizmos: Gizmos, looked_at_query: Query<&LookingAt>) {
     let cube = Cuboid {
         half_size: Vec3::splat(BLOCK_HALF_SIZE + 0.001),
     };
 
-    for (looking_at, global_transform) in looked_at_query.iter() {
-        let (_scale, rotation, _translation) = global_transform.to_scale_rotation_translation();
-        // println!(
-        //     "Looking at {}, block {}",
-        //     looking_at.intersection.point, looking_at.block_pos
-        // );
+    for looking_at in looked_at_query.iter() {
         gizmos.primitive_3d(
             cube,
-            looking_at.block_pos + Vec3::splat(BLOCK_HALF_SIZE)
-                - 2.0 * BLOCK_HALF_SIZE * looking_at.intersection.normal,
-            rotation,
+            looking_at.block_pos + Vec3::splat(BLOCK_HALF_SIZE),
+            Quat::IDENTITY,
             Color::WHITE,
         );
     }
