@@ -71,13 +71,9 @@ impl GameWorld {
         }
     }
     // Saves player changes to chunk
-    pub fn save_chunk(
-        &mut self,
-        translation: ChunkTranslation,
-        dimensions: ChunkDimensions,
-        chunk: &Chunk,
-    ) {
-        if let Some(chunk_prev) = self.chunk_data.get_mut(&translation) {
+    pub fn save_chunk(&mut self, chunk: &Chunk) {
+        let dimensions = chunk.dimensions.clone();
+        if let Some(chunk_prev) = self.chunk_data.get_mut(&chunk.translation) {
             for x in 0..dimensions.width {
                 for y in 0..dimensions.height {
                     for z in 0..dimensions.depth {
@@ -101,10 +97,10 @@ impl GameWorld {
                 }
             }
             self.chunk_data.insert(
-                translation.clone(),
+                chunk.translation.clone(),
                 Chunk {
                     block_data,
-                    translation,
+                    translation: chunk.translation.clone(),
                     dimensions,
                 },
             );
