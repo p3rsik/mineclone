@@ -5,7 +5,7 @@ use crate::chunk::Chunk;
 use crate::chunk::ChunkDimensions;
 use crate::config::GameConfig;
 
-#[derive(Resource)]
+#[derive(Resource, PartialEq, Eq, Clone)]
 pub enum ShowChunks {
     Show,
     DontShow,

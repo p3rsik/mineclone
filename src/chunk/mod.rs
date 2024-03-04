@@ -19,20 +19,33 @@ impl Plugin for ChunkPlugin {
         app.insert_resource(ChunkDimensions::default())
             .insert_resource(ShowChunks::DontShow)
             .add_event::<ChunkEvent>()
+            .configure_sets(
+                Update,
+                (ChunkSystems::PlayerInput, ChunkSystems::ChunkReload).chain(),
+            )
             .add_systems(
                 Update,
                 (
-                    load_chunks,
-                    create_object,
-                    toggle_show_chunks,
-                    show_chunk_border,
-                    mark_chunks,
-                    reload_chunk_mesh,
-                    unload_chunks,
-                    destroy_object,
+                    (show_chunk_border.run_if(resource_equals(ShowChunks::Show))),
+                    (
+                        mark_chunks,
+                        create_object,
+                        destroy_object,
+                        toggle_show_chunks,
+                    )
+                        .in_set(ChunkSystems::PlayerInput),
+                    (load_chunks, unload_chunks, reload_chunk)
+                        .in_set(ChunkSystems::ChunkReload)
+                        .run_if(on_event::<ChunkEvent>()),
                 ),
             );
     }
+}
+
+#[derive(SystemSet, Hash, Debug, PartialEq, Eq, Clone)]
+pub enum ChunkSystems {
+    PlayerInput,
+    ChunkReload,
 }
 
 #[derive(Component, Debug)]
@@ -51,10 +64,6 @@ impl Chunk {
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
         self.block_data[index as usize] = BlockId(0);
-        println!(
-            "remove_block_at({} = {}) -> {:?}",
-            translation, index, self.block_data[index as usize]
-        );
     }
     pub fn set_block_at(&mut self, translation: &Vec3) {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
@@ -64,10 +73,6 @@ impl Chunk {
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
         self.block_data[index as usize] = BlockId(1);
-        println!(
-            "set_block_at({} = {}) -> {:?}",
-            translation, index, self.block_data[index as usize]
-        );
     }
     pub fn get_block_at(&self, translation: &Vec3) -> BlockId {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)

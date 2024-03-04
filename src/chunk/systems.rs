@@ -118,7 +118,7 @@ pub fn load_chunks(
     for chunk_event in chunk_ev.read() {
         let chunk_data = match chunk_event {
             ChunkEvent::Load(chunk_data) => chunk_data,
-            _ => return,
+            _ => continue,
         };
 
         let chunk = game_world.get_chunk(
@@ -174,7 +174,7 @@ pub fn unload_chunks(
     for chunk_event in chunk_ev.read() {
         let chunk_entity = match chunk_event {
             ChunkEvent::Remove(chunk_entity) => chunk_entity,
-            _ => return,
+            _ => continue,
         };
         if let Ok(chunk) = to_unload_chunk_query.get(*chunk_entity) {
             game_world.save_chunk(chunk);
@@ -183,7 +183,7 @@ pub fn unload_chunks(
     }
 }
 
-pub fn reload_chunk_mesh(
+pub fn reload_chunk(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -194,7 +194,7 @@ pub fn reload_chunk_mesh(
     for chunk_event in chunk_ev.read() {
         let chunk_entity = match chunk_event {
             ChunkEvent::Reload(chunk_entity) => chunk_entity,
-            _ => return,
+            _ => continue,
         };
         if let Ok(chunk) = chunks_to_reload_query.get(*chunk_entity) {
             let mesh = chunk.mesh();
@@ -235,19 +235,13 @@ pub fn destroy_object(
     buttons: Res<ButtonInput<MouseButton>>,
     mut chunk_ev: EventWriter<ChunkEvent>,
     looking_at_query: Query<(&Parent, &LookingAt)>,
-    mut chunk_query: Query<(&mut Chunk, &GlobalTransform)>,
+    mut chunk_query: Query<&mut Chunk>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         for (chunk_entity, looking_at) in looking_at_query.iter() {
             // TODO Check if this solution is okay
             // block always has one parent and it's its chunk
-            let (mut chunk, transform) = chunk_query.get_mut(chunk_entity.get()).unwrap();
-            let (_scale, _rot, tr) = transform.to_scale_rotation_translation();
-            println!(
-                "removing block from {:?} with global transform {}",
-                chunk.translation, tr
-            );
-            println!("{:?}", looking_at);
+            let mut chunk = chunk_query.get_mut(chunk_entity.get()).unwrap();
             let local_pos = chunk.get_local_block_pos(&looking_at.block_pos);
             chunk.remove_block_at(&local_pos);
             chunk_ev.send(ChunkEvent::Reload(chunk_entity.get()));
