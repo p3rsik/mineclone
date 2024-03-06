@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{camera::LookingAt, config::GameConfig, player::Player, world::GameWorld};
+use crate::{
+    block::BLOCK_ID_AIR, camera::LookingAt, config::GameConfig, player::Player, world::GameWorld,
+};
 
 use super::{Chunk, ChunkDimensions, ChunkEvent, ChunkLoadData, ChunkTranslation};
 
@@ -96,7 +98,6 @@ pub fn mark_chunks(
                     };
                     chunk_ev.send(ChunkEvent::Load(ChunkLoadData {
                         translation: ChunkTranslation { x, y, z },
-                        dimensions: chunk_dimensions.clone(),
                         global_pos: Vec3::new(x_global, y_global, z_global),
                     }));
                 }
@@ -109,7 +110,7 @@ pub fn load_chunks(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    game_world: Res<GameWorld>,
+    mut game_world: ResMut<GameWorld>,
     // all chunks marked for loading
     mut chunk_ev: EventReader<ChunkEvent>,
 ) {
@@ -121,10 +122,7 @@ pub fn load_chunks(
             _ => continue,
         };
 
-        let chunk = game_world.get_chunk(
-            chunk_data.translation.clone(),
-            chunk_data.dimensions.clone(),
-        );
+        let chunk = game_world.get_chunk_at(chunk_data.translation.clone());
         let mesh = chunk.mesh();
         // apparently Collider::from_bevy_mesh panics, because of
         // assert!(indices.len() > 0), so I need to check it manually
@@ -279,7 +277,7 @@ pub fn create_object(
             let y = { translation.y - chunk_transform.translation.y };
             let z = { translation.z - chunk_transform.translation.z };
 
-            chunk.set_block_at(&Vec3::new(x, y, z));
+            chunk.set_block_at(&Vec3::new(x, y, z), BLOCK_ID_AIR);
             commands.entity(chunk_entity).with_children(|parent| {
                 parent.spawn((
                     PbrBundle {

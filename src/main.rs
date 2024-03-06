@@ -3,8 +3,10 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 use bevy_rapier3d::prelude::*;
+use block::BlockPlugin;
 use camera::CameraPlugin;
 use chunk::ChunkPlugin;
+use common::AppState;
 use config::ConfigPlugin;
 use player::PlayerPlugin;
 use world::GameWorldPlugin;
@@ -12,12 +14,15 @@ use world::GameWorldPlugin;
 mod block;
 mod camera;
 mod chunk;
+mod common;
 mod config;
 mod player;
+mod registry;
 mod world;
 
 fn main() {
     App::new()
+        .init_state::<AppState>()
         .insert_resource(ClearColor(Color::rgb(0.1, 0.0, 0.15)))
         .insert_resource(AmbientLight {
             brightness: 0.75,
@@ -45,6 +50,7 @@ fn main() {
         //     ..default()
         // })
         .add_plugins((
+            BlockPlugin,
             ConfigPlugin,
             CameraPlugin,
             ChunkPlugin,

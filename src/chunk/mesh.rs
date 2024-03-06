@@ -3,7 +3,7 @@ use bevy::{
     render::{mesh::Indices, render_asset::RenderAssetUsages},
 };
 
-use crate::block::BLOCK_HALF_SIZE;
+use crate::block::{Opacity, BLOCK_HALF_SIZE};
 
 use super::Chunk;
 
@@ -79,11 +79,13 @@ impl Meshable for Chunk {
                         (z as isize - (self.dimensions.depth / 2) as isize) as f32,
                     );
                     // if current block is air, we don't need to do anything
-                    if self.get_block_at(&pos).0 == 0 {
+                    if self.get_block_at(&pos).opacity == Opacity::Opaque {
                         continue;
                     }
                     // if we're at the front chunk border or there is no block in front
-                    if z == 0 || (z > 0 && self.get_block_at(&(pos - Vec3::Z)).0 == 0) {
+                    if z == 0
+                        || (z > 0 && self.get_block_at(&(pos - Vec3::Z)).opacity == Opacity::Opaque)
+                    {
                         vertices.push(get_face_mesh(Face::Back, pos * BLOCK_HALF_SIZE * 2.0));
                         indices.extend_from_slice(&[
                             indice,
@@ -98,7 +100,7 @@ impl Meshable for Chunk {
                     // if we're at the back chunk border or there is no block before
                     if (z == self.dimensions.depth - 1)
                         || (z < self.dimensions.depth - 1
-                            && self.get_block_at(&(pos + Vec3::Z)).0 == 0)
+                            && self.get_block_at(&(pos + Vec3::Z)).opacity == Opacity::Opaque)
                     {
                         vertices.push(get_face_mesh(Face::Front, pos * BLOCK_HALF_SIZE * 2.0));
                         indices.extend_from_slice(&[
@@ -112,7 +114,9 @@ impl Meshable for Chunk {
                         indice += 4;
                     }
                     // if we're at the left chunk border or there is no block on the left
-                    if x == 0 || (x > 0 && self.get_block_at(&(pos - Vec3::X)).0 == 0) {
+                    if x == 0
+                        || (x > 0 && self.get_block_at(&(pos - Vec3::X)).opacity == Opacity::Opaque)
+                    {
                         vertices.push(get_face_mesh(Face::Left, pos * BLOCK_HALF_SIZE * 2.0));
                         indices.extend_from_slice(&[
                             indice,
@@ -128,7 +132,7 @@ impl Meshable for Chunk {
                     // if we're at the right chunk border or there is no block on the right
                     if (x == self.dimensions.width - 1)
                         || (x < self.dimensions.width - 1
-                            && self.get_block_at(&(pos + Vec3::X)).0 == 0)
+                            && self.get_block_at(&(pos + Vec3::X)).opacity == Opacity::Opaque)
                     {
                         vertices.push(get_face_mesh(Face::Right, pos * BLOCK_HALF_SIZE * 2.0));
                         indices.extend_from_slice(&[
@@ -143,7 +147,9 @@ impl Meshable for Chunk {
                     }
 
                     // if we're at the bottom chunk border or there is no block beneath
-                    if (y == 0) || (y > 0 && self.get_block_at(&(pos - Vec3::Y)).0 == 0) {
+                    if (y == 0)
+                        || (y > 0 && self.get_block_at(&(pos - Vec3::Y)).opacity == Opacity::Opaque)
+                    {
                         vertices.push(get_face_mesh(Face::Bottom, pos * BLOCK_HALF_SIZE * 2.0));
                         indices.extend_from_slice(&[
                             indice,
@@ -159,7 +165,7 @@ impl Meshable for Chunk {
                     // if we're at the top chunk border or there is no block at the top
                     if (y == self.dimensions.height - 1)
                         || (y < self.dimensions.height - 1
-                            && self.get_block_at(&(pos + Vec3::Y)).0 == 0)
+                            && self.get_block_at(&(pos + Vec3::Y)).opacity == Opacity::Opaque)
                     {
                         vertices.push(get_face_mesh(Face::Top, pos * BLOCK_HALF_SIZE * 2.0));
                         indices.extend_from_slice(&[

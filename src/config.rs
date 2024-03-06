@@ -38,7 +38,7 @@ pub struct ChunkConfig {
 
 impl Default for ChunkConfig {
     fn default() -> Self {
-        ChunkConfig { render_distance: 1 }
+        ChunkConfig { render_distance: 4 }
     }
 }
 

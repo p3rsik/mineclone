@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 
 use crate::{
-    block::BlockId,
+    block::{BlockId, BLOCK_ID_AIR},
     chunk::{
         debug::{show_chunk_border, toggle_show_chunks, ShowChunks},
         systems::*,
     },
+    common::AppState,
 };
 
 pub mod debug;
@@ -21,7 +22,9 @@ impl Plugin for ChunkPlugin {
             .add_event::<ChunkEvent>()
             .configure_sets(
                 Update,
-                (ChunkSystems::PlayerInput, ChunkSystems::ChunkReload).chain(),
+                (ChunkSystems::PlayerInput, ChunkSystems::ChunkReload)
+                    .chain()
+                    .run_if(in_state(AppState::Game)),
             )
             .add_systems(
                 Update,
@@ -63,16 +66,16 @@ impl Chunk {
             + (translation.y as isize + (self.dimensions.height / 2) as isize)
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
-        self.block_data[index as usize] = BlockId(0);
+        self.block_data[index as usize] = BLOCK_ID_AIR;
     }
-    pub fn set_block_at(&mut self, translation: &Vec3) {
+    pub fn set_block_at(&mut self, translation: &Vec3, block: BlockId) {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
             * (self.dimensions.width as isize)
             * (self.dimensions.height as isize)
             + (translation.y as isize + (self.dimensions.height / 2) as isize)
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
-        self.block_data[index as usize] = BlockId(1);
+        self.block_data[index as usize] = block;
     }
     pub fn get_block_at(&self, translation: &Vec3) -> BlockId {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
@@ -113,7 +116,6 @@ impl Chunk {
 
 pub struct ChunkLoadData {
     translation: ChunkTranslation,
-    dimensions: ChunkDimensions,
     global_pos: Vec3,
 }
 
@@ -135,9 +137,9 @@ pub struct ChunkDimensions {
 impl Default for ChunkDimensions {
     fn default() -> Self {
         ChunkDimensions {
-            width: 2,
-            height: 2,
-            depth: 2,
+            width: 16,
+            height: 16,
+            depth: 16,
         }
     }
 }

@@ -3,6 +3,7 @@ use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
 use crate::{
     camera::{CameraPerspective, PlayerCamera},
+    common::AppState,
     config::GameConfig,
 };
 
@@ -10,9 +11,10 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player)
-            .add_systems(Update, move_player)
-            .add_systems(Update, rotate_player_and_camera);
+        app.add_systems(Startup, spawn_player).add_systems(
+            Update,
+            (move_player, rotate_player_and_camera).run_if(in_state(AppState::Game)),
+        );
     }
 }
 

@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 bevy = { version = "0.13", features = ["dynamic_linking"] }
 bevy_rapier3d = "*"
+serde = {version = "*", features = ["derive"]}
+serde_json = "*"
+thiserror = "*"
 
 [profile.dev]
 opt-level = 1

@@ -1,15 +1,23 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{block::BLOCK_HALF_SIZE, config::GameConfig, player::Player};
+use crate::{block::BLOCK_HALF_SIZE, common::AppState, config::GameConfig, player::Player};
 
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CameraPerspective::default())
-            .add_systems(Update, (change_perspective, change_camera_origin))
-            .add_systems(Update, (block_selection, draw_box_aroud_object));
+            .add_systems(
+                Update,
+                (
+                    change_perspective,
+                    change_camera_origin,
+                    block_selection,
+                    draw_box_aroud_object,
+                )
+                    .run_if(in_state(AppState::Game)),
+            );
     }
 }
 
