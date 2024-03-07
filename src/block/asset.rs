@@ -6,10 +6,10 @@ use bevy::{
 use serde_json::from_slice;
 use thiserror::Error;
 
-use super::{Block, BlockJson, BlockTextures, BlockTexturesPaths};
+use super::{Block, BlockJson};
 
 #[derive(Default)]
-struct BlockLoader;
+pub struct BlockAssetLoader;
 
 #[derive(Debug, Error)]
 pub enum BlockLoaderError {
@@ -19,7 +19,7 @@ pub enum BlockLoaderError {
     JsonError(#[from] serde_json::Error),
 }
 
-impl AssetLoader for BlockLoader {
+impl AssetLoader for BlockAssetLoader {
     type Asset = Block;
 
     type Settings = ();
@@ -40,37 +40,7 @@ impl AssetLoader for BlockLoader {
             // at this point texture atlas must already be stitched
             // and all textures must be loaded, so this must return handles
             // to existing assets instead of reloading them
-            let block_textures = match block_json.textures {
-                BlockTexturesPaths::All {
-                    top,
-                    bottom,
-                    side_front,
-                    side_back,
-                    side_left,
-                    side_right,
-                } => BlockTextures::All {
-                    top: load_context.load(top).id(),
-                    bottom: load_context.load(bottom).id(),
-                    side_front: load_context.load(side_front).id(),
-                    side_back: load_context.load(side_back).id(),
-                    side_left: load_context.load(side_left).id(),
-                    side_right: load_context.load(side_right).id(),
-                },
-                BlockTexturesPaths::TopBottomAndSide { top, bottom, side } => {
-                    BlockTextures::TopBottomAndSide {
-                        top: load_context.load(top).id(),
-                        bottom: load_context.load(bottom).id(),
-                        side: load_context.load(side).id(),
-                    }
-                }
-                BlockTexturesPaths::TopAndSide { top, side } => BlockTextures::TopAndSide {
-                    top: load_context.load(top).id(),
-                    side: load_context.load(side).id(),
-                },
-                BlockTexturesPaths::Single(texture) => {
-                    BlockTextures::Single(load_context.load(texture).id())
-                }
-            };
+            let block_textures = block_json.textures.map(|v| load_context.load(v).id());
 
             Ok(Block {
                 id: block_json.id.into(),
@@ -79,5 +49,9 @@ impl AssetLoader for BlockLoader {
                 opacity: block_json.opacity.into(),
             })
         })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["block"]
     }
 }

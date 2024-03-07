@@ -1,8 +1,11 @@
 use bevy::{asset::LoadedFolder, prelude::*, render::texture::ImageSampler};
 use std::marker::PhantomData;
 
-use super::{Block, BlocksTexturesFolder};
-use crate::common::{create_texture_atlas, AppState, Atlas};
+use super::{Block, BlockInfoFolder, BlocksTexturesFolder};
+use crate::{
+    common::{create_texture_atlas, AppState, Atlas, SetupState},
+    registry::BlockRegistry,
+};
 
 pub fn load_blocks_textures_folder(mut commands: Commands, asset_server: Res<AssetServer>) {
     let blocks_textures = asset_server.load_folder("textures/blocks");
@@ -16,7 +19,7 @@ pub fn check_textures(
 ) {
     for event in events.read() {
         if event.is_loaded_with_dependencies(&block_textures_folder.0) {
-            next_state.set(AppState::Game);
+            next_state.set(AppState::Setup(SetupState::Blocks));
         }
     }
 }
@@ -30,11 +33,49 @@ pub fn stitch_blocks_texture_atlas(
 ) {
     let folder = loaded_folders.get(&blocks_textures.0).unwrap();
     let (atlas_layout, atlas_texture) =
-        create_texture_atlas(&folder, None, Some(ImageSampler::nearest()), &mut textures);
+        create_texture_atlas(folder, None, Some(ImageSampler::nearest()), &mut textures);
     let atlas_layout = texture_layouts.add(atlas_layout);
     commands.insert_resource(Atlas {
         texture: atlas_texture,
         layout: atlas_layout,
         phantom: PhantomData::<Block>,
     });
+}
+
+pub fn load_blocks_folder(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let blocks_folder = asset_server.load_folder("blocks");
+    commands.insert_resource(BlockInfoFolder(blocks_folder));
+}
+
+pub fn check_blocks(
+    mut next_state: ResMut<NextState<AppState>>,
+    block_info_folder: Res<BlockInfoFolder>,
+    mut events: EventReader<AssetEvent<LoadedFolder>>,
+) {
+    for event in events.read() {
+        if event.is_loaded_with_dependencies(&block_info_folder.0) {
+            next_state.set(AppState::Game);
+        }
+    }
+}
+
+pub fn populate_block_registry(
+    blocks_info: Res<BlockInfoFolder>,
+    loaded_folders: Res<Assets<LoadedFolder>>,
+    blocks: ResMut<Assets<Block>>,
+    mut registry: ResMut<BlockRegistry>,
+) {
+    let folder = loaded_folders.get(&blocks_info.0).unwrap();
+    for handle in folder.handles.iter() {
+        let handle = handle.clone().typed_unchecked::<Block>();
+        let id = handle.id();
+        let Some(block) = blocks.get(id) else {
+            warn!(
+                "{:?} did not resolve to a `Block` asset.",
+                handle.path().unwrap()
+            );
+            continue;
+        };
+        registry.register(block.id.clone(), handle);
+    }
 }

@@ -2,10 +2,16 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
 use crate::{
-    block::BLOCK_ID_AIR, camera::LookingAt, config::GameConfig, player::Player, world::GameWorld,
+    block::{Block, BlockId},
+    camera::LookingAt,
+    common::Atlas,
+    config::GameConfig,
+    player::Player,
+    registry::BlockRegistry,
+    world::GameWorld,
 };
 
-use super::{Chunk, ChunkDimensions, ChunkEvent, ChunkLoadData, ChunkTranslation};
+use super::{mesh::ChunkMesh, Chunk, ChunkDimensions, ChunkEvent, ChunkLoadData, ChunkTranslation};
 
 pub fn mark_chunks(
     config: Res<GameConfig>,
@@ -113,6 +119,10 @@ pub fn load_chunks(
     mut game_world: ResMut<GameWorld>,
     // all chunks marked for loading
     mut chunk_ev: EventReader<ChunkEvent>,
+    blocks: Res<Assets<Block>>,
+    block_registry: Res<BlockRegistry>,
+    block_atlas: Res<Atlas<Block>>,
+    layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
     let material_h = materials.add(Color::WHITE);
 
@@ -123,7 +133,10 @@ pub fn load_chunks(
         };
 
         let chunk = game_world.get_chunk_at(chunk_data.translation.clone());
-        let mesh = chunk.mesh();
+        let atlas_layout = layouts.get(&block_atlas.layout).unwrap();
+        let chunk_mesh = ChunkMesh::new(&chunk, atlas_layout, &block_registry, &blocks);
+
+        let mesh = chunk_mesh.mesh();
         // apparently Collider::from_bevy_mesh panics, because of
         // assert!(indices.len() > 0), so I need to check it manually
         // Why can't you rust return Err?
@@ -187,15 +200,25 @@ pub fn reload_chunk(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut chunk_ev: EventReader<ChunkEvent>,
     chunks_to_reload_query: Query<&Chunk>,
+    blocks: Res<Assets<Block>>,
+    block_registry: Res<BlockRegistry>,
+    block_atlas: Res<Atlas<Block>>,
+    layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
-    let material_h = materials.add(Color::WHITE);
+    let material_h = materials.add(StandardMaterial {
+        base_color_texture: Some(block_atlas.texture.clone()),
+        ..default()
+    });
     for chunk_event in chunk_ev.read() {
         let chunk_entity = match chunk_event {
             ChunkEvent::Reload(chunk_entity) => chunk_entity,
             _ => continue,
         };
         if let Ok(chunk) = chunks_to_reload_query.get(*chunk_entity) {
-            let mesh = chunk.mesh();
+            let atlas_layout = layouts.get(&block_atlas.layout).unwrap();
+            let chunk_mesh = ChunkMesh::new(chunk, atlas_layout, &block_registry, &blocks);
+
+            let mesh = chunk_mesh.mesh();
             // apparently Collider::from_bevy_mesh panics, because of
             // assert!(indices.len() > 0), so I need to check it manually
             // Why can't you rust return Err?
@@ -277,7 +300,7 @@ pub fn create_object(
             let y = { translation.y - chunk_transform.translation.y };
             let z = { translation.z - chunk_transform.translation.z };
 
-            chunk.set_block_at(&Vec3::new(x, y, z), BLOCK_ID_AIR);
+            chunk.set_block_at(&Vec3::new(x, y, z), BlockId::air());
             commands.entity(chunk_entity).with_children(|parent| {
                 parent.spawn((
                     PbrBundle {

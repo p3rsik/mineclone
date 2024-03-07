@@ -2,11 +2,23 @@ use std::marker::PhantomData;
 
 use bevy::{asset::LoadedFolder, prelude::*, render::texture::ImageSampler};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
 pub enum AppState {
-    #[default]
-    Setup,
+    Setup(SetupState),
     Game,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        AppState::Setup(SetupState::Textures)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
+pub enum SetupState {
+    #[default]
+    Textures,
+    Blocks,
 }
 
 // Generalized resource to hold different kind of atlasses

@@ -1,24 +1,47 @@
 use bevy::{asset::LoadedFolder, prelude::*};
 use serde::Deserialize;
 
-use crate::{common::AppState, registry::BlockRegistry};
+use crate::{
+    common::{AppState, SetupState},
+    registry::BlockRegistry,
+};
 
-use self::systems::{check_textures, load_blocks_textures_folder, stitch_blocks_texture_atlas};
+use self::systems::*;
 
 pub mod asset;
 mod systems;
 
 pub const BLOCK_HALF_SIZE: f32 = 0.5;
-pub const BLOCK_ID_AIR: BlockId = BlockId(String::from("mineclone:air"));
 
 pub struct BlockPlugin;
 
 impl Plugin for BlockPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BlockRegistry>()
-            .add_systems(OnEnter(AppState::Setup), load_blocks_textures_folder)
-            .add_systems(Update, check_textures.run_if(in_state(AppState::Setup)))
-            .add_systems(OnExit(AppState::Setup), stitch_blocks_texture_atlas);
+            .add_systems(
+                OnEnter(AppState::Setup(SetupState::Textures)),
+                load_blocks_textures_folder,
+            )
+            .add_systems(
+                Update,
+                check_textures.run_if(in_state(AppState::Setup(SetupState::Textures))),
+            )
+            .add_systems(
+                OnExit(AppState::Setup(SetupState::Textures)),
+                stitch_blocks_texture_atlas,
+            )
+            .add_systems(
+                OnEnter(AppState::Setup(SetupState::Blocks)),
+                load_blocks_folder,
+            )
+            .add_systems(
+                Update,
+                check_blocks.run_if(in_state(AppState::Setup(SetupState::Blocks))),
+            )
+            .add_systems(
+                OnExit(AppState::Setup(SetupState::Blocks)),
+                populate_block_registry,
+            );
     }
 }
 
@@ -30,8 +53,20 @@ pub struct Block {
     pub opacity: Opacity,
 }
 
+#[derive(Clone, Debug)]
+pub struct BlockMesh {
+    pub opacity: Opacity,
+    pub textures: BlockTextures<Rect>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BlockId(pub String);
+
+impl BlockId {
+    pub fn air() -> BlockId {
+        BlockId::from("mineclone:air")
+    }
+}
 
 // Textures of a block
 #[derive(Clone, Debug, Deserialize)]
@@ -43,10 +78,10 @@ pub enum BlockTextures<T> {
     All {
         top: T,
         bottom: T,
-        side_front: T,
-        side_back: T,
-        side_left: T,
-        side_right: T,
+        front: T,
+        back: T,
+        left: T,
+        right: T,
     },
     // top, bottom and one for all sieds
     TopBottomAndSide {
@@ -89,9 +124,18 @@ pub struct BlockJson {
 #[derive(Resource)]
 pub struct BlocksTexturesFolder(pub Handle<LoadedFolder>);
 
+#[derive(Resource)]
+pub struct BlockInfoFolder(pub Handle<LoadedFolder>);
+
 impl From<String> for BlockId {
     fn from(value: String) -> Self {
         BlockId(value)
+    }
+}
+
+impl From<&str> for BlockId {
+    fn from(value: &str) -> Self {
+        BlockId(String::from(value))
     }
 }
 
@@ -100,6 +144,163 @@ impl From<u8> for Opacity {
         match value {
             0 => Opacity::Opaque,
             v => Opacity::Transparent(v),
+        }
+    }
+}
+
+impl<T> BlockTextures<T> {
+    pub fn map<F, U>(self, mut f: F) -> BlockTextures<U>
+    where
+        F: FnMut(T) -> U,
+    {
+        match self {
+            BlockTextures::All {
+                top,
+                bottom,
+                front,
+                back,
+                left,
+                right,
+            } => BlockTextures::All {
+                top: f(top),
+                bottom: f(bottom),
+                front: f(front),
+                back: f(back),
+                left: f(left),
+                right: f(right),
+            },
+            BlockTextures::TopBottomAndSide { top, bottom, side } => {
+                BlockTextures::TopBottomAndSide {
+                    top: f(top),
+                    bottom: f(bottom),
+                    side: f(side),
+                }
+            }
+            BlockTextures::TopAndSide { top, side } => BlockTextures::TopAndSide {
+                top: f(top),
+                side: f(side),
+            },
+            BlockTextures::Single(v) => BlockTextures::Single(f(v)),
+        }
+    }
+
+    pub fn top(&self) -> &T {
+        match self {
+            BlockTextures::All {
+                top,
+                bottom: _,
+                front: _,
+                back: _,
+                left: _,
+                right: _,
+            } => top,
+            BlockTextures::TopBottomAndSide {
+                top,
+                bottom: _,
+                side: _,
+            } => top,
+            BlockTextures::TopAndSide { top, side: _ } => top,
+            BlockTextures::Single(v) => v,
+        }
+    }
+
+    pub fn bottom(&self) -> &T {
+        match self {
+            BlockTextures::All {
+                top: _,
+                bottom,
+                front: _,
+                back: _,
+                left: _,
+                right: _,
+            } => bottom,
+            BlockTextures::TopBottomAndSide {
+                top: _,
+                bottom,
+                side: _,
+            } => bottom,
+            BlockTextures::TopAndSide { top, side: _ } => top,
+            BlockTextures::Single(v) => v,
+        }
+    }
+
+    pub fn front(&self) -> &T {
+        match self {
+            BlockTextures::All {
+                top: _,
+                bottom: _,
+                front,
+                back: _,
+                left: _,
+                right: _,
+            } => front,
+            BlockTextures::TopBottomAndSide {
+                top: _,
+                bottom: _,
+                side,
+            } => side,
+            BlockTextures::TopAndSide { top: _, side } => side,
+            BlockTextures::Single(v) => v,
+        }
+    }
+
+    pub fn back(&self) -> &T {
+        match self {
+            BlockTextures::All {
+                top: _,
+                bottom: _,
+                front: _,
+                back,
+                left: _,
+                right: _,
+            } => back,
+            BlockTextures::TopBottomAndSide {
+                top: _,
+                bottom: _,
+                side,
+            } => side,
+            BlockTextures::TopAndSide { top: _, side } => side,
+            BlockTextures::Single(v) => v,
+        }
+    }
+
+    pub fn left(&self) -> &T {
+        match self {
+            BlockTextures::All {
+                top: _,
+                bottom: _,
+                front: _,
+                back: _,
+                left,
+                right: _,
+            } => left,
+            BlockTextures::TopBottomAndSide {
+                top: _,
+                bottom: _,
+                side,
+            } => side,
+            BlockTextures::TopAndSide { top: _, side } => side,
+            BlockTextures::Single(v) => v,
+        }
+    }
+
+    pub fn right(&self) -> &T {
+        match self {
+            BlockTextures::All {
+                top: _,
+                bottom: _,
+                front: _,
+                back: _,
+                left: _,
+                right,
+            } => right,
+            BlockTextures::TopBottomAndSide {
+                top: _,
+                bottom: _,
+                side,
+            } => side,
+            BlockTextures::TopAndSide { top: _, side } => side,
+            BlockTextures::Single(v) => v,
         }
     }
 }

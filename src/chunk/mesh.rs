@@ -1,11 +1,65 @@
 use bevy::{
     prelude::*,
     render::{mesh::Indices, render_asset::RenderAssetUsages},
+    utils::HashMap,
 };
 
-use crate::block::{Opacity, BLOCK_HALF_SIZE};
+use super::{Chunk, ChunkDimensions};
+use crate::{
+    block::{Block, BlockMesh, Opacity, BLOCK_HALF_SIZE},
+    registry::BlockRegistry,
+};
 
-use super::Chunk;
+#[derive(Clone, Debug)]
+pub struct ChunkMesh {
+    block_data: Vec<BlockMesh>,
+    atlas_size: Vec2,
+    dimensions: ChunkDimensions,
+}
+
+impl ChunkMesh {
+    pub fn new(
+        chunk: &Chunk,
+        atlas: &TextureAtlasLayout,
+        registry: &Res<BlockRegistry>,
+        blocks: &Res<Assets<Block>>,
+    ) -> ChunkMesh {
+        let mut block_meshes = HashMap::with_capacity(chunk.unique_blocks.len());
+        for block_id in chunk.unique_blocks.iter() {
+            let handle = registry.get(block_id).unwrap();
+            let block = blocks.get(handle).unwrap();
+            block_meshes.insert(
+                block_id.clone(),
+                BlockMesh {
+                    opacity: block.opacity.clone(),
+                    textures: block
+                        .textures
+                        .clone()
+                        .map(|v| atlas.textures[atlas.get_texture_index(v).unwrap()]),
+                },
+            );
+        }
+        ChunkMesh {
+            dimensions: chunk.dimensions.clone(),
+            atlas_size: atlas.size,
+            block_data: chunk
+                .block_data
+                .iter()
+                .map(|block_id| block_meshes.get(block_id).unwrap().clone())
+                .collect(),
+        }
+    }
+
+    fn get_block_at(&self, translation: &Vec3) -> BlockMesh {
+        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+            * (self.dimensions.width as isize)
+            * (self.dimensions.height as isize)
+            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+                * (self.dimensions.width as isize)
+            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+        self.block_data[index as usize].clone()
+    }
+}
 
 enum Face {
     Front,
@@ -16,52 +70,61 @@ enum Face {
     Bottom,
 }
 
-fn get_face_mesh(face: Face, pos: Vec3) -> [([f32; 3], [f32; 3], [f32; 2]); 4] {
+fn get_face_mesh(
+    face: Face,
+    pos: Vec3,
+    atlas_size: Vec2,
+    uv: Rect,
+) -> [([f32; 3], [f32; 3], [f32; 2]); 4] {
     let min = pos;
     let max = pos + Vec3::splat(BLOCK_HALF_SIZE * 2.0);
+    let leftx = uv.min.x / atlas_size.x;
+    let rightx = uv.max.x / atlas_size.x;
+    let boty = uv.min.y / atlas_size.y;
+    let topy = uv.max.y / atlas_size.y;
     // Truthfully stolen from bevy cuboid Meshable instance :)
     // Suppose Y-up right hand, and camera look from +Z to -Z
     match face {
         Face::Front => [
-            ([min.x, min.y, max.z], [0.0, 0.0, 1.0], [0.0, 0.0]),
-            ([max.x, min.y, max.z], [0.0, 0.0, 1.0], [1.0, 0.0]),
-            ([max.x, max.y, max.z], [0.0, 0.0, 1.0], [1.0, 1.0]),
-            ([min.x, max.y, max.z], [0.0, 0.0, 1.0], [0.0, 1.0]),
+            ([min.x, min.y, max.z], [0.0, 0.0, 1.0], [leftx, boty]),
+            ([max.x, min.y, max.z], [0.0, 0.0, 1.0], [rightx, boty]),
+            ([max.x, max.y, max.z], [0.0, 0.0, 1.0], [rightx, topy]),
+            ([min.x, max.y, max.z], [0.0, 0.0, 1.0], [leftx, topy]),
         ],
         Face::Back => [
-            ([min.x, max.y, min.z], [0.0, 0.0, -1.0], [1.0, 0.0]),
-            ([max.x, max.y, min.z], [0.0, 0.0, -1.0], [0.0, 0.0]),
-            ([max.x, min.y, min.z], [0.0, 0.0, -1.0], [0.0, 1.0]),
-            ([min.x, min.y, min.z], [0.0, 0.0, -1.0], [1.0, 1.0]),
+            ([min.x, max.y, min.z], [0.0, 0.0, -1.0], [leftx, topy]),
+            ([max.x, max.y, min.z], [0.0, 0.0, -1.0], [rightx, topy]),
+            ([max.x, min.y, min.z], [0.0, 0.0, -1.0], [rightx, boty]),
+            ([min.x, min.y, min.z], [0.0, 0.0, -1.0], [leftx, boty]),
         ],
         Face::Right => [
-            ([max.x, min.y, min.z], [1.0, 0.0, 0.0], [0.0, 0.0]),
-            ([max.x, max.y, min.z], [1.0, 0.0, 0.0], [1.0, 0.0]),
-            ([max.x, max.y, max.z], [1.0, 0.0, 0.0], [1.0, 1.0]),
-            ([max.x, min.y, max.z], [1.0, 0.0, 0.0], [0.0, 1.0]),
+            ([max.x, min.y, min.z], [1.0, 0.0, 0.0], [leftx, boty]),
+            ([max.x, max.y, min.z], [1.0, 0.0, 0.0], [leftx, topy]),
+            ([max.x, max.y, max.z], [1.0, 0.0, 0.0], [rightx, topy]),
+            ([max.x, min.y, max.z], [1.0, 0.0, 0.0], [rightx, boty]),
         ],
         Face::Left => [
-            ([min.x, min.y, max.z], [-1.0, 0.0, 0.0], [1.0, 0.0]),
-            ([min.x, max.y, max.z], [-1.0, 0.0, 0.0], [0.0, 0.0]),
-            ([min.x, max.y, min.z], [-1.0, 0.0, 0.0], [0.0, 1.0]),
-            ([min.x, min.y, min.z], [-1.0, 0.0, 0.0], [1.0, 1.0]),
+            ([min.x, min.y, max.z], [-1.0, 0.0, 0.0], [leftx, boty]),
+            ([min.x, max.y, max.z], [-1.0, 0.0, 0.0], [leftx, topy]),
+            ([min.x, max.y, min.z], [-1.0, 0.0, 0.0], [rightx, topy]),
+            ([min.x, min.y, min.z], [-1.0, 0.0, 0.0], [rightx, boty]),
         ],
         Face::Top => [
-            ([max.x, max.y, min.z], [0.0, 1.0, 0.0], [1.0, 0.0]),
-            ([min.x, max.y, min.z], [0.0, 1.0, 0.0], [0.0, 0.0]),
-            ([min.x, max.y, max.z], [0.0, 1.0, 0.0], [0.0, 1.0]),
-            ([max.x, max.y, max.z], [0.0, 1.0, 0.0], [1.0, 1.0]),
+            ([max.x, max.y, min.z], [0.0, 1.0, 0.0], [rightx, boty]),
+            ([min.x, max.y, min.z], [0.0, 1.0, 0.0], [leftx, boty]),
+            ([min.x, max.y, max.z], [0.0, 1.0, 0.0], [leftx, topy]),
+            ([max.x, max.y, max.z], [0.0, 1.0, 0.0], [rightx, topy]),
         ],
         Face::Bottom => [
-            ([max.x, min.y, max.z], [0.0, -1.0, 0.0], [0.0, 0.0]),
-            ([min.x, min.y, max.z], [0.0, -1.0, 0.0], [1.0, 0.0]),
-            ([min.x, min.y, min.z], [0.0, -1.0, 0.0], [1.0, 1.0]),
-            ([max.x, min.y, min.z], [0.0, -1.0, 0.0], [0.0, 1.0]),
+            ([max.x, min.y, max.z], [0.0, -1.0, 0.0], [rightx, boty]),
+            ([min.x, min.y, max.z], [0.0, -1.0, 0.0], [leftx, boty]),
+            ([min.x, min.y, min.z], [0.0, -1.0, 0.0], [leftx, topy]),
+            ([max.x, min.y, min.z], [0.0, -1.0, 0.0], [rightx, topy]),
         ],
     }
 }
 
-impl Meshable for Chunk {
+impl Meshable for ChunkMesh {
     type Output = Mesh;
 
     fn mesh(&self) -> Self::Output {
@@ -86,7 +149,13 @@ impl Meshable for Chunk {
                     if z == 0
                         || (z > 0 && self.get_block_at(&(pos - Vec3::Z)).opacity == Opacity::Opaque)
                     {
-                        vertices.push(get_face_mesh(Face::Back, pos * BLOCK_HALF_SIZE * 2.0));
+                        let block = self.get_block_at(&pos);
+                        vertices.push(get_face_mesh(
+                            Face::Back,
+                            pos * BLOCK_HALF_SIZE * 2.0,
+                            self.atlas_size,
+                            *block.textures.front(),
+                        ));
                         indices.extend_from_slice(&[
                             indice,
                             indice + 1,
@@ -102,7 +171,13 @@ impl Meshable for Chunk {
                         || (z < self.dimensions.depth - 1
                             && self.get_block_at(&(pos + Vec3::Z)).opacity == Opacity::Opaque)
                     {
-                        vertices.push(get_face_mesh(Face::Front, pos * BLOCK_HALF_SIZE * 2.0));
+                        let block = self.get_block_at(&pos);
+                        vertices.push(get_face_mesh(
+                            Face::Front,
+                            pos * BLOCK_HALF_SIZE * 2.0,
+                            self.atlas_size,
+                            *block.textures.back(),
+                        ));
                         indices.extend_from_slice(&[
                             indice,
                             indice + 1,
@@ -117,7 +192,13 @@ impl Meshable for Chunk {
                     if x == 0
                         || (x > 0 && self.get_block_at(&(pos - Vec3::X)).opacity == Opacity::Opaque)
                     {
-                        vertices.push(get_face_mesh(Face::Left, pos * BLOCK_HALF_SIZE * 2.0));
+                        let block = self.get_block_at(&pos);
+                        vertices.push(get_face_mesh(
+                            Face::Left,
+                            pos * BLOCK_HALF_SIZE * 2.0,
+                            self.atlas_size,
+                            *block.textures.left(),
+                        ));
                         indices.extend_from_slice(&[
                             indice,
                             indice + 1,
@@ -134,7 +215,13 @@ impl Meshable for Chunk {
                         || (x < self.dimensions.width - 1
                             && self.get_block_at(&(pos + Vec3::X)).opacity == Opacity::Opaque)
                     {
-                        vertices.push(get_face_mesh(Face::Right, pos * BLOCK_HALF_SIZE * 2.0));
+                        let block = self.get_block_at(&pos);
+                        vertices.push(get_face_mesh(
+                            Face::Right,
+                            pos * BLOCK_HALF_SIZE * 2.0,
+                            self.atlas_size,
+                            *block.textures.right(),
+                        ));
                         indices.extend_from_slice(&[
                             indice,
                             indice + 1,
@@ -150,7 +237,13 @@ impl Meshable for Chunk {
                     if (y == 0)
                         || (y > 0 && self.get_block_at(&(pos - Vec3::Y)).opacity == Opacity::Opaque)
                     {
-                        vertices.push(get_face_mesh(Face::Bottom, pos * BLOCK_HALF_SIZE * 2.0));
+                        let block = self.get_block_at(&pos);
+                        vertices.push(get_face_mesh(
+                            Face::Bottom,
+                            pos * BLOCK_HALF_SIZE * 2.0,
+                            self.atlas_size,
+                            *block.textures.bottom(),
+                        ));
                         indices.extend_from_slice(&[
                             indice,
                             indice + 1,
@@ -167,7 +260,13 @@ impl Meshable for Chunk {
                         || (y < self.dimensions.height - 1
                             && self.get_block_at(&(pos + Vec3::Y)).opacity == Opacity::Opaque)
                     {
-                        vertices.push(get_face_mesh(Face::Top, pos * BLOCK_HALF_SIZE * 2.0));
+                        let block = self.get_block_at(&pos);
+                        vertices.push(get_face_mesh(
+                            Face::Top,
+                            pos * BLOCK_HALF_SIZE * 2.0,
+                            self.atlas_size,
+                            *block.textures.top(),
+                        ));
                         indices.extend_from_slice(&[
                             indice,
                             indice + 1,

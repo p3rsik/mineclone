@@ -5,8 +5,8 @@ use bevy::{prelude::*, utils::HashMap};
 use crate::block::{Block, BlockId};
 
 #[derive(Resource)]
-struct Registry<K, V> {
-    registry: HashMap<K, V>,
+pub struct Registry<K, V> {
+    pub registry: HashMap<K, V>,
 }
 
 pub type BlockRegistry = Registry<BlockId, Handle<Block>>;
@@ -24,6 +24,14 @@ impl<K: PartialEq + Eq + Hash, V> Registry<K, V> {
 
     pub fn remove(&mut self, k: &K) {
         self.registry.remove(k);
+    }
+
+    pub fn get(&self, k: &K) -> Option<&V> {
+        self.registry.get(k)
+    }
+
+    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+        self.registry.get_mut(k)
     }
 }
 

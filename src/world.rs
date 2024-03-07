@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::HashMap};
 
 use crate::{
-    block::BLOCK_ID_AIR,
+    block::BlockId,
     chunk::{Chunk, ChunkDimensions, ChunkTranslation},
 };
 
@@ -40,8 +40,9 @@ impl GameWorld {
         // modified data to apply while generating
     ) -> Chunk {
         let dimensions = self.chunk_dimensions.clone();
+        let mut unique_blocks = Vec::new();
         let mut block_data =
-            vec![BLOCK_ID_AIR; dimensions.width * dimensions.height * dimensions.depth];
+            vec![BlockId::air(); dimensions.width * dimensions.height * dimensions.depth];
         let maybe_chunk = self.chunk_data.get(&translation);
         for x in 0..dimensions.width {
             for y in 0..dimensions.height {
@@ -51,6 +52,9 @@ impl GameWorld {
                     if let Some(chunk) = maybe_chunk {
                         // if there is a block in storage - use it
                         if let Some(block_id) = chunk.block_data.get(index) {
+                            if *block_id != BlockId::air() && !unique_blocks.contains(block_id) {
+                                unique_blocks.push(block_id.clone());
+                            }
                             block_data[index] = block_id.clone();
                             continue;
                         }
@@ -59,13 +63,13 @@ impl GameWorld {
                         // if we're at chunks that are under 0 then generate stone
                         if translation.y < 0 {
                             if index == 7 {
-                                block_data[index] = BLOCK_ID_AIR;
+                                block_data[index] = BlockId::air();
                                 continue;
                             }
-                            block_data[index] = BLOCK_ID_AIR;
+                            block_data[index] = BlockId::air();
                         } else {
                             // else generate air
-                            block_data[index] = BLOCK_ID_AIR;
+                            block_data[index] = BlockId::air();
                         }
                     };
                 }
@@ -78,6 +82,7 @@ impl GameWorld {
                     block_data: block_data.clone(),
                     translation: translation.clone(),
                     dimensions: dimensions.clone(),
+                    unique_blocks: unique_blocks.clone(),
                 },
             );
         }
@@ -85,6 +90,7 @@ impl GameWorld {
             block_data,
             translation,
             dimensions,
+            unique_blocks,
         }
     }
     // Saves player changes to chunk
@@ -102,7 +108,7 @@ impl GameWorld {
             }
         } else {
             let mut block_data =
-                vec![BLOCK_ID_AIR; dimensions.width * dimensions.height * dimensions.depth];
+                vec![BlockId::air(); dimensions.width * dimensions.height * dimensions.depth];
 
             for x in 0..dimensions.width {
                 for y in 0..dimensions.height {
@@ -119,6 +125,7 @@ impl GameWorld {
                     block_data,
                     translation: chunk.translation.clone(),
                     dimensions,
+                    unique_blocks: chunk.unique_blocks.clone(),
                 },
             );
         };

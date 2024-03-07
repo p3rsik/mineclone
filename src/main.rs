@@ -3,7 +3,7 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 use bevy_rapier3d::prelude::*;
-use block::BlockPlugin;
+use block::{asset::BlockAssetLoader, Block, BlockPlugin};
 use camera::CameraPlugin;
 use chunk::ChunkPlugin;
 use common::AppState;
@@ -23,6 +23,8 @@ mod world;
 fn main() {
     App::new()
         .init_state::<AppState>()
+        .init_asset::<Block>()
+        .init_asset_loader::<BlockAssetLoader>()
         .insert_resource(ClearColor(Color::rgb(0.1, 0.0, 0.15)))
         .insert_resource(AmbientLight {
             brightness: 0.75,
