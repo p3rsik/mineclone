@@ -53,7 +53,7 @@ pub enum ChunkSystems {
 
 #[derive(Component, Debug)]
 pub struct Chunk {
-    pub block_data: Vec<BlockId>,
+    pub block_data: Vec<Option<BlockId>>,
     pub translation: ChunkTranslation,
     pub dimensions: ChunkDimensions,
     pub unique_blocks: Vec<BlockId>,
@@ -67,18 +67,18 @@ impl Chunk {
             + (translation.y as isize + (self.dimensions.height / 2) as isize)
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
-        self.block_data[index as usize] = BlockId::air();
+        self.block_data[index as usize] = None;
     }
-    pub fn set_block_at(&mut self, translation: &Vec3, block: BlockId) {
+    pub fn set_block_at(&mut self, translation: &Vec3, block_id: BlockId) {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
             * (self.dimensions.width as isize)
             * (self.dimensions.height as isize)
             + (translation.y as isize + (self.dimensions.height / 2) as isize)
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
-        self.block_data[index as usize] = block;
+        self.block_data[index as usize] = Some(block_id);
     }
-    pub fn get_block_at(&self, translation: &Vec3) -> BlockId {
+    pub fn get_block_at(&self, translation: &Vec3) -> Option<BlockId> {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
             * (self.dimensions.width as isize)
             * (self.dimensions.height as isize)
@@ -95,11 +95,6 @@ impl Chunk {
             (self.translation.x as f32 + 0.5) * width,
             (self.translation.y as f32 + 0.5) * height,
             (self.translation.z as f32 + 0.5) * depth,
-        );
-        println!(
-            "get_local_block_pos({}) -> {}",
-            translation,
-            *translation - origin
         );
         *translation - origin
     }

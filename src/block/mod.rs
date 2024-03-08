@@ -6,7 +6,7 @@ use crate::{
     registry::BlockRegistry,
 };
 
-use self::systems::*;
+use self::{asset::BlockAssetLoader, systems::*};
 
 pub mod asset;
 mod systems;
@@ -18,6 +18,8 @@ pub struct BlockPlugin;
 impl Plugin for BlockPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BlockRegistry>()
+            .init_asset::<Block>()
+            .init_asset_loader::<BlockAssetLoader>()
             .add_systems(
                 OnEnter(AppState::Setup(SetupState::Textures)),
                 load_blocks_textures_folder,
@@ -126,6 +128,10 @@ pub struct BlocksTexturesFolder(pub Handle<LoadedFolder>);
 
 #[derive(Resource)]
 pub struct BlockInfoFolder(pub Handle<LoadedFolder>);
+
+// So that we won't need to reconstruct the material every time
+#[derive(Resource)]
+pub struct BlockMaterial(pub Handle<StandardMaterial>);
 
 impl From<String> for BlockId {
     fn from(value: String) -> Self {

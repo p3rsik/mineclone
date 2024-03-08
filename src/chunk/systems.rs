@@ -114,7 +114,6 @@ pub fn mark_chunks(
 
 pub fn load_chunks(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut game_world: ResMut<GameWorld>,
     // all chunks marked for loading
@@ -124,8 +123,6 @@ pub fn load_chunks(
     block_atlas: Res<Atlas<Block>>,
     layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
-    let material_h = materials.add(Color::WHITE);
-
     for chunk_event in chunk_ev.read() {
         let chunk_data = match chunk_event {
             ChunkEvent::Load(chunk_data) => chunk_data,
@@ -163,7 +160,7 @@ pub fn load_chunks(
                 parent.spawn((
                     PbrBundle {
                         mesh,
-                        material: material_h.clone(),
+                        material: block_atlas.material.clone(),
                         transform: Transform::from_translation(Vec3::splat(0.0)),
                         ..default()
                     },
@@ -197,7 +194,6 @@ pub fn unload_chunks(
 pub fn reload_chunk(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut chunk_ev: EventReader<ChunkEvent>,
     chunks_to_reload_query: Query<&Chunk>,
     blocks: Res<Assets<Block>>,
@@ -205,10 +201,6 @@ pub fn reload_chunk(
     block_atlas: Res<Atlas<Block>>,
     layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
-    let material_h = materials.add(StandardMaterial {
-        base_color_texture: Some(block_atlas.texture.clone()),
-        ..default()
-    });
     for chunk_event in chunk_ev.read() {
         let chunk_entity = match chunk_event {
             ChunkEvent::Reload(chunk_entity) => chunk_entity,
@@ -238,7 +230,7 @@ pub fn reload_chunk(
                         parent.spawn((
                             PbrBundle {
                                 mesh,
-                                material: material_h.clone(),
+                                material: block_atlas.material.clone(),
                                 transform: Transform::from_translation(Vec3::splat(0.0)),
                                 ..default()
                             },

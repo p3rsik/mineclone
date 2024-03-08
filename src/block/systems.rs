@@ -30,14 +30,20 @@ pub fn stitch_blocks_texture_atlas(
     loaded_folders: Res<Assets<LoadedFolder>>,
     mut textures: ResMut<Assets<Image>>,
     mut texture_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let folder = loaded_folders.get(&blocks_textures.0).unwrap();
     let (atlas_layout, atlas_texture) =
         create_texture_atlas(folder, None, Some(ImageSampler::nearest()), &mut textures);
     let atlas_layout = texture_layouts.add(atlas_layout);
+    let material_h = materials.add(StandardMaterial {
+        base_color_texture: Some(atlas_texture.clone()),
+        ..default()
+    });
     commands.insert_resource(Atlas {
         texture: atlas_texture,
         layout: atlas_layout,
+        material: material_h,
         phantom: PhantomData::<Block>,
     });
 }
@@ -60,6 +66,7 @@ pub fn check_blocks(
 }
 
 pub fn populate_block_registry(
+    mut commands: Commands,
     blocks_info: Res<BlockInfoFolder>,
     loaded_folders: Res<Assets<LoadedFolder>>,
     blocks: ResMut<Assets<Block>>,
@@ -78,4 +85,7 @@ pub fn populate_block_registry(
         };
         registry.register(block.id.clone(), handle);
     }
+    // Dropping the handle to the blocks texture folder
+    // since we have already stitched the atlas
+    commands.remove_resource::<BlocksTexturesFolder>();
 }

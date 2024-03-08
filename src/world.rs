@@ -41,35 +41,32 @@ impl GameWorld {
     ) -> Chunk {
         let dimensions = self.chunk_dimensions.clone();
         let mut unique_blocks = Vec::new();
-        let mut block_data =
-            vec![BlockId::air(); dimensions.width * dimensions.height * dimensions.depth];
+        let mut block_data = vec![None; dimensions.width * dimensions.height * dimensions.depth];
         let maybe_chunk = self.chunk_data.get(&translation);
         for x in 0..dimensions.width {
             for y in 0..dimensions.height {
                 for z in 0..dimensions.depth {
                     let index = x * dimensions.width * dimensions.height + y * dimensions.width + z;
                     // if there is a chunk in memory already
-                    if let Some(chunk) = maybe_chunk {
-                        // if there is a block in storage - use it
-                        if let Some(block_id) = chunk.block_data.get(index) {
-                            if *block_id != BlockId::air() && !unique_blocks.contains(block_id) {
-                                unique_blocks.push(block_id.clone());
-                            }
-                            block_data[index] = block_id.clone();
-                            continue;
+                    if let Some(block_id) =
+                        maybe_chunk.and_then(|chunk| chunk.block_data[index].clone())
+                    {
+                        if !unique_blocks.contains(&block_id) {
+                            unique_blocks.push(block_id.clone());
                         }
+                        block_data[index] = Some(block_id.clone());
+                        continue;
                     } else {
                         // TODO replace with actual world generation
                         // if we're at chunks that are under 0 then generate stone
                         if translation.y < 0 {
-                            if index == 7 {
-                                block_data[index] = BlockId::air();
-                                continue;
+                            block_data[index] = Some(BlockId::from("mineclone:stone"));
+                            if !unique_blocks.contains(&BlockId::from("mineclone:stone")) {
+                                unique_blocks.push(BlockId::from("mineclone:stone"));
                             }
-                            block_data[index] = BlockId::air();
                         } else {
                             // else generate air
-                            block_data[index] = BlockId::air();
+                            block_data[index] = None;
                         }
                     };
                 }
@@ -108,7 +105,7 @@ impl GameWorld {
             }
         } else {
             let mut block_data =
-                vec![BlockId::air(); dimensions.width * dimensions.height * dimensions.depth];
+                vec![None; dimensions.width * dimensions.height * dimensions.depth];
 
             for x in 0..dimensions.width {
                 for y in 0..dimensions.height {

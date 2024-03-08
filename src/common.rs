@@ -26,6 +26,7 @@ pub enum SetupState {
 pub struct Atlas<T> {
     pub texture: Handle<Image>,
     pub layout: Handle<TextureAtlasLayout>,
+    pub material: Handle<StandardMaterial>,
     pub phantom: PhantomData<T>,
 }
 

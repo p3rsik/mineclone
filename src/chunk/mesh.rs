@@ -12,7 +12,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ChunkMesh {
-    block_data: Vec<BlockMesh>,
+    block_data: Vec<Option<BlockMesh>>,
     atlas_size: Vec2,
     dimensions: ChunkDimensions,
 }
@@ -45,12 +45,16 @@ impl ChunkMesh {
             block_data: chunk
                 .block_data
                 .iter()
-                .map(|block_id| block_meshes.get(block_id).unwrap().clone())
+                .map(|some_id| {
+                    some_id
+                        .as_ref()
+                        .and_then(|block_id| block_meshes.get(block_id).cloned())
+                })
                 .collect(),
         }
     }
 
-    fn get_block_at(&self, translation: &Vec3) -> BlockMesh {
+    fn get_block_at(&self, translation: &Vec3) -> Option<BlockMesh> {
         let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
             * (self.dimensions.width as isize)
             * (self.dimensions.height as isize)
@@ -58,6 +62,22 @@ impl ChunkMesh {
                 * (self.dimensions.width as isize)
             + (translation.z as isize + (self.dimensions.depth / 2) as isize);
         self.block_data[index as usize].clone()
+    }
+
+    fn get_block_opacity_at(&self, translation: &Vec3) -> Opacity {
+        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+            * (self.dimensions.width as isize)
+            * (self.dimensions.height as isize)
+            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+                * (self.dimensions.width as isize)
+            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+        let block = self.block_data[index as usize].clone();
+
+        if let Some(block) = block {
+            block.opacity
+        } else {
+            Opacity::Transparent(255)
+        }
     }
 }
 
@@ -142,140 +162,146 @@ impl Meshable for ChunkMesh {
                         (z as isize - (self.dimensions.depth / 2) as isize) as f32,
                     );
                     // if current block is air, we don't need to do anything
-                    if self.get_block_at(&pos).opacity == Opacity::Opaque {
+                    if self.get_block_at(&pos).is_none() {
                         continue;
                     }
                     // if we're at the front chunk border or there is no block in front
                     if z == 0
-                        || (z > 0 && self.get_block_at(&(pos - Vec3::Z)).opacity == Opacity::Opaque)
+                        || (z > 0 && self.get_block_opacity_at(&(pos - Vec3::Z)) != Opacity::Opaque)
                     {
-                        let block = self.get_block_at(&pos);
-                        vertices.push(get_face_mesh(
-                            Face::Back,
-                            pos * BLOCK_HALF_SIZE * 2.0,
-                            self.atlas_size,
-                            *block.textures.front(),
-                        ));
-                        indices.extend_from_slice(&[
-                            indice,
-                            indice + 1,
-                            indice + 2,
-                            indice + 2,
-                            indice + 3,
-                            indice,
-                        ]);
-                        indice += 4;
+                        if let Some(block) = self.get_block_at(&pos) {
+                            vertices.push(get_face_mesh(
+                                Face::Back,
+                                pos * BLOCK_HALF_SIZE * 2.0,
+                                self.atlas_size,
+                                *block.textures.front(),
+                            ));
+                            indices.extend_from_slice(&[
+                                indice,
+                                indice + 1,
+                                indice + 2,
+                                indice + 2,
+                                indice + 3,
+                                indice,
+                            ]);
+                            indice += 4;
+                        }
                     }
                     // if we're at the back chunk border or there is no block before
                     if (z == self.dimensions.depth - 1)
                         || (z < self.dimensions.depth - 1
-                            && self.get_block_at(&(pos + Vec3::Z)).opacity == Opacity::Opaque)
+                            && self.get_block_opacity_at(&(pos + Vec3::Z)) != Opacity::Opaque)
                     {
-                        let block = self.get_block_at(&pos);
-                        vertices.push(get_face_mesh(
-                            Face::Front,
-                            pos * BLOCK_HALF_SIZE * 2.0,
-                            self.atlas_size,
-                            *block.textures.back(),
-                        ));
-                        indices.extend_from_slice(&[
-                            indice,
-                            indice + 1,
-                            indice + 2,
-                            indice + 2,
-                            indice + 3,
-                            indice,
-                        ]);
-                        indice += 4;
+                        if let Some(block) = self.get_block_at(&pos) {
+                            vertices.push(get_face_mesh(
+                                Face::Front,
+                                pos * BLOCK_HALF_SIZE * 2.0,
+                                self.atlas_size,
+                                *block.textures.back(),
+                            ));
+                            indices.extend_from_slice(&[
+                                indice,
+                                indice + 1,
+                                indice + 2,
+                                indice + 2,
+                                indice + 3,
+                                indice,
+                            ]);
+                            indice += 4;
+                        }
                     }
                     // if we're at the left chunk border or there is no block on the left
                     if x == 0
-                        || (x > 0 && self.get_block_at(&(pos - Vec3::X)).opacity == Opacity::Opaque)
+                        || (x > 0 && self.get_block_opacity_at(&(pos - Vec3::X)) != Opacity::Opaque)
                     {
-                        let block = self.get_block_at(&pos);
-                        vertices.push(get_face_mesh(
-                            Face::Left,
-                            pos * BLOCK_HALF_SIZE * 2.0,
-                            self.atlas_size,
-                            *block.textures.left(),
-                        ));
-                        indices.extend_from_slice(&[
-                            indice,
-                            indice + 1,
-                            indice + 2,
-                            indice + 2,
-                            indice + 3,
-                            indice,
-                        ]);
-                        indice += 4;
+                        if let Some(block) = self.get_block_at(&pos) {
+                            vertices.push(get_face_mesh(
+                                Face::Left,
+                                pos * BLOCK_HALF_SIZE * 2.0,
+                                self.atlas_size,
+                                *block.textures.left(),
+                            ));
+                            indices.extend_from_slice(&[
+                                indice,
+                                indice + 1,
+                                indice + 2,
+                                indice + 2,
+                                indice + 3,
+                                indice,
+                            ]);
+                            indice += 4;
+                        }
                     }
 
                     // if we're at the right chunk border or there is no block on the right
                     if (x == self.dimensions.width - 1)
                         || (x < self.dimensions.width - 1
-                            && self.get_block_at(&(pos + Vec3::X)).opacity == Opacity::Opaque)
+                            && self.get_block_opacity_at(&(pos + Vec3::X)) != Opacity::Opaque)
                     {
-                        let block = self.get_block_at(&pos);
-                        vertices.push(get_face_mesh(
-                            Face::Right,
-                            pos * BLOCK_HALF_SIZE * 2.0,
-                            self.atlas_size,
-                            *block.textures.right(),
-                        ));
-                        indices.extend_from_slice(&[
-                            indice,
-                            indice + 1,
-                            indice + 2,
-                            indice + 2,
-                            indice + 3,
-                            indice,
-                        ]);
-                        indice += 4;
+                        if let Some(block) = self.get_block_at(&pos) {
+                            vertices.push(get_face_mesh(
+                                Face::Right,
+                                pos * BLOCK_HALF_SIZE * 2.0,
+                                self.atlas_size,
+                                *block.textures.right(),
+                            ));
+                            indices.extend_from_slice(&[
+                                indice,
+                                indice + 1,
+                                indice + 2,
+                                indice + 2,
+                                indice + 3,
+                                indice,
+                            ]);
+                            indice += 4;
+                        }
                     }
 
                     // if we're at the bottom chunk border or there is no block beneath
                     if (y == 0)
-                        || (y > 0 && self.get_block_at(&(pos - Vec3::Y)).opacity == Opacity::Opaque)
+                        || (y > 0 && self.get_block_opacity_at(&(pos - Vec3::Y)) != Opacity::Opaque)
                     {
-                        let block = self.get_block_at(&pos);
-                        vertices.push(get_face_mesh(
-                            Face::Bottom,
-                            pos * BLOCK_HALF_SIZE * 2.0,
-                            self.atlas_size,
-                            *block.textures.bottom(),
-                        ));
-                        indices.extend_from_slice(&[
-                            indice,
-                            indice + 1,
-                            indice + 2,
-                            indice + 2,
-                            indice + 3,
-                            indice,
-                        ]);
-                        indice += 4;
+                        if let Some(block) = self.get_block_at(&pos) {
+                            vertices.push(get_face_mesh(
+                                Face::Bottom,
+                                pos * BLOCK_HALF_SIZE * 2.0,
+                                self.atlas_size,
+                                *block.textures.bottom(),
+                            ));
+                            indices.extend_from_slice(&[
+                                indice,
+                                indice + 1,
+                                indice + 2,
+                                indice + 2,
+                                indice + 3,
+                                indice,
+                            ]);
+                            indice += 4;
+                        }
                     }
 
                     // if we're at the top chunk border or there is no block at the top
                     if (y == self.dimensions.height - 1)
                         || (y < self.dimensions.height - 1
-                            && self.get_block_at(&(pos + Vec3::Y)).opacity == Opacity::Opaque)
+                            && self.get_block_opacity_at(&(pos + Vec3::Y)) != Opacity::Opaque)
                     {
-                        let block = self.get_block_at(&pos);
-                        vertices.push(get_face_mesh(
-                            Face::Top,
-                            pos * BLOCK_HALF_SIZE * 2.0,
-                            self.atlas_size,
-                            *block.textures.top(),
-                        ));
-                        indices.extend_from_slice(&[
-                            indice,
-                            indice + 1,
-                            indice + 2,
-                            indice + 2,
-                            indice + 3,
-                            indice,
-                        ]);
-                        indice += 4;
+                        if let Some(block) = self.get_block_at(&pos) {
+                            vertices.push(get_face_mesh(
+                                Face::Top,
+                                pos * BLOCK_HALF_SIZE * 2.0,
+                                self.atlas_size,
+                                *block.textures.top(),
+                            ));
+                            indices.extend_from_slice(&[
+                                indice,
+                                indice + 1,
+                                indice + 2,
+                                indice + 2,
+                                indice + 3,
+                                indice,
+                            ]);
+                            indice += 4;
+                        }
                     }
                 }
             }

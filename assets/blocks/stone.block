@@ -1,6 +1,6 @@
 {
   "id": "mineclone:stone",
   "name": "Stone Block",
-  "textures": "assets/blocks/stone/stone.png",
+  "textures": "textures/blocks/stone.png",
   "opacity": 0
 }
