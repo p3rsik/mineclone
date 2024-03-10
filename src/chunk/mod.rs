@@ -51,7 +51,7 @@ pub enum ChunkSystems {
     ChunkReload,
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct Chunk {
     pub block_data: Vec<Option<BlockId>>,
     pub translation: ChunkTranslation,
