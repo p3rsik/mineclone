@@ -10,13 +10,14 @@ pub enum AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        AppState::Setup(SetupState::Textures)
+        AppState::Setup(SetupState::default())
     }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
 pub enum SetupState {
     #[default]
+    Ui,
     Textures,
     Blocks,
 }
@@ -26,7 +27,8 @@ pub enum SetupState {
 pub struct Atlas<T> {
     pub texture: Handle<Image>,
     pub layout: Handle<TextureAtlasLayout>,
-    pub material: Handle<StandardMaterial>,
+    // TODO investigate if this is the best method for this
+    pub material: Option<Handle<StandardMaterial>>,
     pub phantom: PhantomData<T>,
 }
 

@@ -5,6 +5,19 @@ pub struct KeyConfig {
     pub camera_controls: CameraControls,
     pub player_controls: PlayerControls,
     pub debug_controls: DebugControls,
+    pub game_controls: GameControls,
+}
+
+pub struct GameControls {
+    pub inventory_key: KeyCode,
+}
+
+impl Default for GameControls {
+    fn default() -> Self {
+        GameControls {
+            inventory_key: KeyCode::KeyE,
+        }
+    }
 }
 
 pub struct CameraControls {

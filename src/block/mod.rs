@@ -129,10 +129,6 @@ pub struct BlocksTexturesFolder(pub Handle<LoadedFolder>);
 #[derive(Resource)]
 pub struct BlockInfoFolder(pub Handle<LoadedFolder>);
 
-// So that we won't need to reconstruct the material every time
-#[derive(Resource)]
-pub struct BlockMaterial(pub Handle<StandardMaterial>);
-
 impl From<String> for BlockId {
     fn from(value: String) -> Self {
         BlockId(value)

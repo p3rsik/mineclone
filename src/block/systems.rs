@@ -43,7 +43,7 @@ pub fn stitch_blocks_texture_atlas(
     commands.insert_resource(Atlas {
         texture: atlas_texture,
         layout: atlas_layout,
-        material: material_h,
+        material: Some(material_h),
         phantom: PhantomData::<Block>,
     });
 }

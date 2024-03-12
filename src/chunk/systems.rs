@@ -160,7 +160,8 @@ pub fn load_chunks(
                 parent.spawn((
                     PbrBundle {
                         mesh,
-                        material: block_atlas.material.clone(),
+                        // it is safe to unwrap here, since Block atlas will always contain material
+                        material: block_atlas.material.clone().unwrap(),
                         transform: Transform::from_translation(Vec3::splat(0.0)),
                         ..default()
                     },
@@ -230,7 +231,8 @@ pub fn reload_chunk(
                         parent.spawn((
                             PbrBundle {
                                 mesh,
-                                material: block_atlas.material.clone(),
+                                // It is safe to unwrap here, since block_atlas will always contain a material
+                                material: block_atlas.material.clone().unwrap(),
                                 transform: Transform::from_translation(Vec3::splat(0.0)),
                                 ..default()
                             },

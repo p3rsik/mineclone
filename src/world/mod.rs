@@ -3,13 +3,20 @@ use bevy::{prelude::*, utils::HashMap};
 use crate::{
     block::BlockId,
     chunk::{Chunk, ChunkDimensions, ChunkTranslation},
+    common::AppState,
 };
+
+use self::systems::*;
+
+mod systems;
 
 pub struct GameWorldPlugin;
 
 impl Plugin for GameWorldPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<GameWorld>();
+        app.init_resource::<GameWorld>()
+            .add_systems(OnEnter(AppState::Game), setup_global_light)
+            .add_systems(Update, (day_night_cycle).run_if(in_state(AppState::Game)));
     }
 }
 
@@ -83,10 +90,8 @@ impl GameWorld {
     }
     // Saves player changes to chunk
     pub fn save_chunk(&mut self, chunk: &Chunk) {
-        println!("Saving chunk {:?}", chunk.translation);
         let dimensions = chunk.dimensions.clone();
         if let Some(chunk_prev) = self.chunk_data.get_mut(&chunk.translation) {
-            println!("Found it in memory");
             for x in 0..dimensions.width {
                 for y in 0..dimensions.height {
                     for z in 0..dimensions.depth {
@@ -97,7 +102,6 @@ impl GameWorld {
                 }
             }
         } else {
-            println!("Saving to memory");
             let mut block_data =
                 vec![None; dimensions.width * dimensions.height * dimensions.depth];
 
