@@ -64,12 +64,6 @@ pub struct BlockMesh {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BlockId(pub String);
 
-impl BlockId {
-    pub fn air() -> BlockId {
-        BlockId::from("mineclone:air")
-    }
-}
-
 // Textures of a block
 #[derive(Clone, Debug, Deserialize)]
 #[serde(untagged)]

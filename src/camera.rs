@@ -1,7 +1,6 @@
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
 
-use crate::{block::BLOCK_HALF_SIZE, common::AppState, config::GameConfig, player::Player};
+use crate::{common::AppState, config::GameConfig, player::Player};
 
 pub struct CameraPlugin;
 
@@ -10,26 +9,9 @@ impl Plugin for CameraPlugin {
         app.insert_resource(CameraPerspective::default())
             .add_systems(
                 Update,
-                (
-                    change_perspective,
-                    change_camera_origin,
-                    block_selection,
-                    draw_box_aroud_object,
-                )
-                    .run_if(in_state(AppState::Game)),
+                (change_perspective, change_camera_origin).run_if(in_state(AppState::Game)),
             );
     }
-}
-
-// Used to determine at what entity camera is looking
-#[derive(Component, Debug)]
-pub struct LookingAt {
-    // Entity which the player is looking at
-    pub entity: Entity,
-    // Intersection info
-    pub intersection: RayIntersection,
-    // Position of block in global coords
-    pub block_pos: Vec3,
 }
 
 #[derive(Resource, Default, PartialEq)]
@@ -95,50 +77,16 @@ fn change_camera_origin(
     }
 }
 
-fn block_selection(
-    mut commands: Commands,
-    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
-    player_entity_query: Query<(Entity, &Transform), With<Player>>,
-    looked_at_query: Query<Entity, With<LookingAt>>,
-    rapier_context: Res<RapierContext>,
-) {
-    let camera_transform = camera_query.single();
-    let (player_entity, player_transform) = player_entity_query.single();
-    let ray_pos = player_transform.translation + Vec3::Y * 2.0;
-    let ray_dir = camera_transform.forward().xyz();
-    let max_toi = 8.0;
-    let solid = true;
-    let filter = QueryFilter::new().exclude_collider(player_entity);
-
-    for looked_at in looked_at_query.iter() {
-        commands.entity(looked_at).remove::<LookingAt>();
-    }
-    if let Some((entity, intersection)) =
-        rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, max_toi, solid, filter)
-    {
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
-            let point = intersection.point;
-            entity_commands.insert(LookingAt {
-                entity,
-                intersection,
-                block_pos: Vec3::new(point.x.floor(), point.y.floor(), point.z.floor())
-                    - intersection.normal,
-            });
-        }
-    };
-}
-
-fn draw_box_aroud_object(mut gizmos: Gizmos, looked_at_query: Query<&LookingAt>) {
-    let cube = Cuboid {
-        half_size: Vec3::splat(BLOCK_HALF_SIZE + 0.001),
-    };
-
-    for looking_at in looked_at_query.iter() {
-        gizmos.primitive_3d(
-            cube,
-            looking_at.block_pos + Vec3::splat(BLOCK_HALF_SIZE),
-            Quat::IDENTITY,
-            Color::WHITE,
-        );
-    }
-}
+// fn draw_box_aroud_object(mut gizmos: Gizmos, looked_at_query: Query<&LookingAt>) {
+//     let cube = Cuboid {
+//         half_size: Vec3::splat(BLOCK_HALF_SIZE + 0.001),
+//     };
+//     for looking_at in looked_at_query.iter() {
+//         gizmos.primitive_3d(
+//             cube,
+//             looking_at.block_pos + Vec3::splat(BLOCK_HALF_SIZE),
+//             Quat::IDENTITY,
+//             Color::WHITE,
+//         );
+//     }
+// }

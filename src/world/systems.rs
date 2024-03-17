@@ -3,7 +3,7 @@ use bevy::prelude::*;
 pub fn setup_global_light(mut commands: Commands) {
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 4000.0,
+            illuminance: 3000.0,
             shadows_enabled: true,
             ..default()
         },

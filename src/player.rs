@@ -1,20 +1,28 @@
-use bevy::{input::mouse::MouseMotion, prelude::*};
+use bevy::{input::mouse::MouseMotion, prelude::*, window::PrimaryWindow};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
 use crate::{
     camera::{CameraPerspective, PlayerCamera},
     common::AppState,
     config::GameConfig,
+    world::GameWorld,
 };
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Game), spawn_player)
+        app.init_resource::<LookingAt>()
+            .add_systems(OnEnter(AppState::Game), spawn_player)
             .add_systems(
                 Update,
-                (move_player, rotate_player_and_camera).run_if(in_state(AppState::Game)),
+                (
+                    move_player,
+                    rotate_player_and_camera,
+                    block_selection,
+                    draw_block_selection,
+                )
+                    .run_if(in_state(AppState::Game)),
             );
     }
 }
@@ -38,6 +46,18 @@ impl Default for Player {
     }
 }
 
+// Used to determine at what entity camera is looking
+#[derive(Resource, Debug, Default)]
+pub enum LookingAt {
+    #[default]
+    Nothing,
+    Something {
+        // Position of block in global coords
+        block_pos: Vec3,
+        normal: Vec3,
+    },
+}
+
 fn spawn_player(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -49,30 +69,26 @@ fn spawn_player(
     let material = materials.add(Color::RED);
     let mesh = meshes.add(player.mesh());
 
-    let player_ent = commands
+    commands
         .spawn(Player::default())
         .insert(PbrBundle {
             mesh,
             material,
-            transform: Transform::from_xyz(0.0, 5.0, 0.0),
+            transform: Transform::from_xyz(0.0, 1.0, 0.0),
             ..default()
         })
         .insert(RigidBody::KinematicPositionBased)
         .insert(Collider::cuboid(0.3, 0.75, 0.3))
         .insert(KinematicCharacterController::default())
-        .id();
-
-    let camera_ent = commands
-        .spawn((
-            Camera3dBundle {
-                transform: Transform::from_xyz(0.0, 2.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
-                ..default()
-            },
-            PlayerCamera::default(),
-        ))
-        .id();
-
-    commands.entity(player_ent).add_child(camera_ent);
+        .with_children(|parent| {
+            parent.spawn((
+                Camera3dBundle {
+                    transform: Transform::from_xyz(0.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+                    ..default()
+                },
+                PlayerCamera::default(),
+            ));
+        });
 }
 
 fn rotate_player_and_camera(
@@ -177,4 +193,54 @@ fn axis_movement(input: &Res<ButtonInput<KeyCode>>, plus: KeyCode, minus: KeyCod
         axis -= 1.0;
     }
     axis
+}
+
+fn block_selection(
+    mut game_world: ResMut<GameWorld>,
+    mut looking_at: ResMut<LookingAt>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<PlayerCamera>>,
+    window_q: Query<&Window, With<PrimaryWindow>>,
+) {
+    *looking_at = LookingAt::Nothing;
+
+    let (camera, camera_transform) = camera_q.single();
+    let Some(cursor_position) = window_q.single().cursor_position() else {
+        return;
+    };
+    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
+    let max_toi = 8;
+    let toi_step = 10;
+
+    for i in 1..(max_toi * toi_step) {
+        if game_world
+            .get_block_at((ray.get_point(i as f32 / toi_step as f32)).floor())
+            .is_some()
+        {
+            let block_pos = (ray.get_point(i as f32 / toi_step as f32)).floor();
+            *looking_at = LookingAt::Something {
+                block_pos,
+                normal: Vec3::ZERO,
+            };
+            return;
+        };
+    }
+}
+
+fn draw_block_selection(mut gizmos: Gizmos, looking_at: Res<LookingAt>) {
+    match *looking_at {
+        LookingAt::Nothing => (),
+        LookingAt::Something {
+            block_pos,
+            normal: _,
+        } => gizmos.primitive_3d(
+            Cuboid {
+                half_size: Vec3::splat(0.5),
+            },
+            block_pos + Vec3::splat(0.5),
+            Quat::IDENTITY,
+            Color::WHITE,
+        ),
+    }
 }

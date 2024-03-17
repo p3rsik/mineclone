@@ -1,9 +1,11 @@
 use bevy::prelude::*;
 
 use crate::block::BLOCK_HALF_SIZE;
-use crate::chunk::Chunk;
+
 use crate::chunk::ChunkDimensions;
 use crate::config::GameConfig;
+
+use super::ChunkMarker;
 
 #[derive(Resource, PartialEq, Eq, Clone)]
 pub enum ShowChunks {
@@ -28,7 +30,7 @@ pub fn show_chunk_border(
     mut gizmos: Gizmos,
     show_chunks: Res<ShowChunks>,
     chunk_dimensions: Res<ChunkDimensions>,
-    chunk_query: Query<&GlobalTransform, With<Chunk>>,
+    chunk_query: Query<&GlobalTransform, With<ChunkMarker>>,
 ) {
     match *show_chunks {
         ShowChunks::DontShow => {}

@@ -20,6 +20,7 @@ pub struct ChunkMesh {
 impl ChunkMesh {
     pub fn new(
         chunk: &Chunk,
+        chunk_dimensions: ChunkDimensions,
         atlas: &TextureAtlasLayout,
         registry: &Res<BlockRegistry>,
         blocks: &Res<Assets<Block>>,
@@ -40,7 +41,7 @@ impl ChunkMesh {
             );
         }
         ChunkMesh {
-            dimensions: chunk.dimensions.clone(),
+            dimensions: chunk_dimensions,
             atlas_size: atlas.size,
             block_data: chunk
                 .block_data
@@ -54,23 +55,23 @@ impl ChunkMesh {
         }
     }
 
-    fn get_block_at(&self, translation: &Vec3) -> Option<BlockMesh> {
-        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+    fn get_block_at(&self, pos: &Vec3) -> Option<BlockMesh> {
+        let index = (pos.x as isize + (self.dimensions.width / 2) as isize)
             * (self.dimensions.width as isize)
             * (self.dimensions.height as isize)
-            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+            + (pos.y as isize + (self.dimensions.height / 2) as isize)
                 * (self.dimensions.width as isize)
-            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+            + (pos.z as isize + (self.dimensions.depth / 2) as isize);
         self.block_data[index as usize].clone()
     }
 
-    fn get_block_opacity_at(&self, translation: &Vec3) -> Opacity {
-        let index = (translation.x as isize + (self.dimensions.width / 2) as isize)
+    fn get_block_opacity_at(&self, pos: &Vec3) -> Opacity {
+        let index = (pos.x as isize + (self.dimensions.width / 2) as isize)
             * (self.dimensions.width as isize)
             * (self.dimensions.height as isize)
-            + (translation.y as isize + (self.dimensions.height / 2) as isize)
+            + (pos.y as isize + (self.dimensions.height / 2) as isize)
                 * (self.dimensions.width as isize)
-            + (translation.z as isize + (self.dimensions.depth / 2) as isize);
+            + (pos.z as isize + (self.dimensions.depth / 2) as isize);
         let block = self.block_data[index as usize].clone();
 
         if let Some(block) = block {

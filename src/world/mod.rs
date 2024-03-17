@@ -40,68 +40,30 @@ impl Default for GameWorld {
 }
 
 impl GameWorld {
-    // Generates chunk and applies player changes to it
-    pub fn get_chunk_at(
-        &mut self,
-        translation: ChunkTranslation,
-        // modified data to apply while generating
-    ) -> Chunk {
-        let dimensions = self.chunk_dimensions.clone();
-        let mut unique_blocks = Vec::new();
-        let mut block_data = vec![None; dimensions.width * dimensions.height * dimensions.depth];
-        if let Some(chunk) = self.chunk_data.get(&translation) {
-            return chunk.clone();
-        };
-
-        for x in 0..dimensions.width {
-            for y in 0..dimensions.height {
-                for z in 0..dimensions.depth {
-                    let index = x * dimensions.width * dimensions.height + y * dimensions.width + z;
-                    // if there is a chunk in memory already
-                    // TODO replace with actual world generation
-                    // if we're at chunks that are under 0 then generate stone
-                    if translation.y < 0 {
-                        block_data[index] = Some(BlockId::from("mineclone:stone"));
-                        if !unique_blocks.contains(&BlockId::from("mineclone:stone")) {
-                            unique_blocks.push(BlockId::from("mineclone:stone"));
-                        }
-                    } else {
-                        // else generate air
-                        block_data[index] = None;
-                    }
-                }
-            }
-        }
-        self.chunk_data.insert(
-            translation.clone(),
-            Chunk {
-                block_data: block_data.clone(),
-                translation: translation.clone(),
-                dimensions: dimensions.clone(),
-                unique_blocks: unique_blocks.clone(),
-            },
-        );
-        Chunk {
-            block_data,
-            translation,
-            dimensions,
-            unique_blocks,
-        }
+    pub fn get_block_at(&mut self, pos: Vec3) -> Option<BlockId> {
+        let chunk_translation = ChunkTranslation::get_chunk_translation(pos, self.chunk_dimensions);
+        let chunk_dimensions = self.chunk_dimensions;
+        let chunk = self.get_chunk_at(chunk_translation);
+        chunk.get_block_at(pos, chunk_dimensions)
     }
-    // Saves player changes to chunk
-    pub fn save_chunk(&mut self, chunk: &Chunk) {
-        let dimensions = chunk.dimensions.clone();
-        if let Some(chunk_prev) = self.chunk_data.get_mut(&chunk.translation) {
-            for x in 0..dimensions.width {
-                for y in 0..dimensions.height {
-                    for z in 0..dimensions.depth {
-                        let index =
-                            x * dimensions.width * dimensions.height + y * dimensions.width + z;
-                        chunk_prev.block_data[index] = chunk.block_data[index].clone();
-                    }
-                }
-            }
-        } else {
+
+    // Sets block at position to the new one returning what was there previously
+    pub fn set_block_at(&mut self, block_id: Option<BlockId>, pos: Vec3) -> Option<BlockId> {
+        let chunk_translation = ChunkTranslation::get_chunk_translation(pos, self.chunk_dimensions);
+        let chunk_dimensions = self.chunk_dimensions;
+        let chunk = self.get_chunk_at_mut(chunk_translation);
+        chunk.set_block_at(pos, block_id, chunk_dimensions)
+    }
+
+    // Generates chunk and applies player changes to it
+    pub fn get_chunk_at_mut(
+        &mut self,
+        chunk_translation: ChunkTranslation,
+        // modified data to apply while generating
+    ) -> &mut Chunk {
+        let dimensions = self.chunk_dimensions;
+        let chunk = self.chunk_data.entry(chunk_translation).or_insert({
+            let mut unique_blocks = Vec::new();
             let mut block_data =
                 vec![None; dimensions.width * dimensions.height * dimensions.depth];
 
@@ -110,19 +72,32 @@ impl GameWorld {
                     for z in 0..dimensions.depth {
                         let index =
                             x * dimensions.width * dimensions.height + y * dimensions.width + z;
-                        block_data[index] = chunk.block_data[index].clone();
+                        // if there is a chunk in memory already
+                        // TODO replace with actual world generation
+                        // if we're at chunks that are under 0 then generate stone
+                        if chunk_translation.y < 0 {
+                            block_data[index] = Some(BlockId::from("mineclone:stone"));
+                            if !unique_blocks.contains(&BlockId::from("mineclone:stone")) {
+                                unique_blocks.push(BlockId::from("mineclone:stone"));
+                            }
+                        } else {
+                            // else generate air
+                            block_data[index] = None;
+                        }
                     }
                 }
             }
-            self.chunk_data.insert(
-                chunk.translation.clone(),
-                Chunk {
-                    block_data,
-                    translation: chunk.translation.clone(),
-                    dimensions,
-                    unique_blocks: chunk.unique_blocks.clone(),
-                },
-            );
-        };
+
+            Chunk {
+                block_data,
+                unique_blocks,
+                translation: chunk_translation,
+            }
+        });
+        chunk
+    }
+
+    pub fn get_chunk_at(&mut self, chunk_translation: ChunkTranslation) -> &Chunk {
+        self.get_chunk_at_mut(chunk_translation)
     }
 }
